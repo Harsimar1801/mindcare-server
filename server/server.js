@@ -1,4 +1,4 @@
-const path=require("path");
+const path = require("path");
 require("dotenv").config();
 
 const express = require("express");
@@ -8,7 +8,13 @@ const cron = require("node-cron");
 const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
 
-// Firebase
+// ================= FIREBASE SAFE INIT =================
+
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  console.error("❌ FIREBASE_SERVICE_ACCOUNT missing");
+  process.exit(1);
+}
+
 const serviceAccount = JSON.parse(
   process.env.FIREBASE_SERVICE_ACCOUNT
 );
@@ -17,19 +23,22 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-// App
+// ================= APP =================
+
 const app = express();
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// ================= GROQ =================
 
-// Groq
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-// File DB
+// ================= FILE DB =================
+
 const DB_FILE = "./memory.json";
 
 function loadDB() {
@@ -41,42 +50,59 @@ function saveDB(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
-// Detect event
+// ================= HELPERS =================
+
 function detectEvent(text) {
   const words = ["exam", "test", "quiz", "interview", "presentation"];
   return words.find(w => text.toLowerCase().includes(w));
 }
 
-// AI Date Parser
+// Safe AI date parser
 async function parseDate(text) {
 
-  const res = await groq.chat.completions.create({
+  try {
 
-    model: "llama-3.1-8b-instant",
+    const res = await groq.chat.completions.create({
 
-    messages: [
-      {
-        role: "system",
-        content: `
-Convert the user message into JSON:
+      model: "llama-3.1-8b-instant",
+
+      temperature: 0,
+
+      messages: [
+        {
+          role: "system",
+          content: `
+Return ONLY valid JSON:
+
 {
-  date: "YYYY-MM-DD",
-  time: "HH:MM" or null
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM" or null
 }
 
-If unclear, guess best possible.
-Only output JSON.
+No explanation.
 `
-      },
-      {
-        role: "user",
-        content: text
-      }
-    ]
-  });
+        },
+        {
+          role: "user",
+          content: text
+        }
+      ]
+    });
 
-  return JSON.parse(res.choices[0].message.content);
+    const raw = res.choices[0].message.content;
+
+    return JSON.parse(raw);
+
+  } catch {
+
+    // fallback if AI fails
+    return {
+      date: new Date().toISOString().slice(0,10),
+      time: null
+    };
+  }
 }
+
 
 // ================= CHAT =================
 
@@ -84,93 +110,120 @@ app.post("/chat", async (req, res) => {
 
   const { message, fcmToken } = req.body;
 
-  let reminders = loadReminders();
+  if (!message) {
+    return res.json({ reply: "Say something bro 😭💙" });
+  }
 
-  const text = message.toLowerCase();
+  if (!fcmToken) {
+    return res.json({
+      reply: "Bro 😭 notifications not ready yet."
+    });
+  }
+
+  let db = loadDB();
+
+  if (!db[fcmToken]) {
+    db[fcmToken] = { events: [], waiting: null };
+  }
+
+  const user = db[fcmToken];
 
 
-  // Find this user's reminder
-  let userReminder = reminders.find(r => r.token === fcmToken);
+  // ===== STEP 2: Save date/time =====
 
+  if (user.waiting) {
 
-  // =========================
-  // STEP 1: If waiting for date
-  // =========================
+    const parsed = await parseDate(message);
 
-  if (userReminder && userReminder.waiting) {
+    user.events.push({
+      type: user.waiting,
+      date: parsed.date,
+      time: parsed.time,
+      raw: message
+    });
 
-    userReminder.date = message;
-    userReminder.waiting = false;
+    user.waiting = null;
 
-    saveReminders(reminders);
+    saveDB(db);
+
+    const last = user.events[user.events.length - 1];
 
     return res.json({
-      reply: `Saved 😤🔥 I’ll remind you before your ${userReminder.type} 💙`
+      reply: `Saved 😤🔥 Your ${last.type} is on ${last.date} ${last.time || ""} 💙`
     });
   }
 
 
-  // =========================
-  // STEP 2: If exam already saved
-  // =========================
+  // ===== STEP 3: Recall =====
 
-  if (
-    userReminder &&
-    text.includes(userReminder.type)
-  ) {
+  if (message.toLowerCase().includes("when")) {
 
-    return res.json({
-      reply: `Brooo 😭 your ${userReminder.type} is ${userReminder.date} remember? You got this 💙🔥`
-    });
+    const type = detectEvent(message);
+
+    if (type) {
+
+      const e = user.events.find(x => x.type === type);
+
+      if (e) {
+
+        return res.json({
+          reply: `Bro 💙 your ${type} is on ${e.date} ${e.time || ""} 😤🔥`
+        });
+
+      } else {
+
+        return res.json({
+          reply: `I don’t see any ${type} saved yet 😅`
+        });
+      }
+    }
   }
 
 
-  // =========================
-  // STEP 3: Detect new event
-  // =========================
+  // ===== STEP 1: New event =====
 
   const event = detectEvent(message);
 
   if (event) {
 
-    // Remove old reminder if exists
-    reminders = reminders.filter(r => r.token !== fcmToken);
+    // Prevent duplicate
+    const exists = user.events.find(e => e.type === event);
 
-    reminders.push({
-      type: event,
-      date: null,
-      token: fcmToken,
-      waiting: true
-    });
+    if (exists) {
 
-    saveReminders(reminders);
+      return res.json({
+        reply: `You already told me about your ${event} bro 😭💙 It’s on ${exists.date}`
+      });
+    }
+
+    user.waiting = event;
+
+    saveDB(db);
 
     return res.json({
-      reply: `Oh damn 😭 when exactly is your ${event}? Date + time bro 💙`
+      reply: `Oh damn 😭 when is your ${event}? Date + time 💙`
     });
   }
 
 
-  // =========================
-  // STEP 4: Normal AI Chat
-  // =========================
+  // ===== NORMAL CHAT =====
 
   try {
 
     const completion = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
-      max_tokens: 120,
+
       temperature: 0.9,
+
+      max_tokens: 120,
 
       messages: [
         {
           role: "system",
           content: `
-You are Harsimar's close best friend.
-Talk casual. Use emojis.
-Be supportive.
-Keep replies short.
+You are Harsimar's best friend.
+Casual. Emojis. Supportive.
 No robotic tone.
 `
         },
@@ -181,33 +234,32 @@ No robotic tone.
       ]
     });
 
-    const reply = completion.choices[0].message.content;
+    res.json({
+      reply: completion.choices[0].message.content
+    });
 
-    res.json({ reply });
-
-  } catch (err) {
-
-    console.log(err);
+  } catch {
 
     res.json({
-      reply: "Brooo 😭 brain froze. Try again 💙"
+      reply: "Bro 😭 brain lag. Try again 💙"
     });
   }
-
 });
 
-// ================= DAILY NOTIFY =================
+
+// ================= DAILY REMINDER =================
 
 cron.schedule("0 9 * * *", async () => {
 
   const db = loadDB();
+
   const today = new Date().toISOString().slice(0,10);
 
   console.log("⏰ Checking reminders", today);
 
   for (const token in db) {
 
-    db[token].events.forEach(async e => {
+    for (const e of db[token].events) {
 
       if (e.date === today) {
 
@@ -220,16 +272,16 @@ cron.schedule("0 9 * * *", async () => {
             body: `How was your ${e.type}? 😤💙`
           }
         });
-
       }
-    });
+    }
   }
 });
 
 
-// Start
+// ================= START =================
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("✅ Server running", PORT);
+  console.log("✅ Server running on", PORT);
 });
