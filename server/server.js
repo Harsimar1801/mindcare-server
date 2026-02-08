@@ -84,76 +84,66 @@ app.post("/chat", async (req, res) => {
 
   const { message, fcmToken } = req.body;
 
-  if (!fcmToken) {
-    return res.json({
-      reply: "Bro 😭 notification token missing."
-    });
-  }
+  let reminders = loadReminders();
 
-  let db = loadDB();
-
-  if (!db[fcmToken]) {
-    db[fcmToken] = { events: [], waiting: null };
-  }
-
-  const user = db[fcmToken];
+  const text = message.toLowerCase();
 
 
-  // STEP 2: Waiting for date
-  if (user.waiting) {
+  // Find this user's reminder
+  let userReminder = reminders.find(r => r.token === fcmToken);
 
-    const parsed = await parseDate(message);
 
-    user.events.push({
-      type: user.waiting,
-      date: parsed.date,
-      time: parsed.time,
-      raw: message
-    });
+  // =========================
+  // STEP 1: If waiting for date
+  // =========================
 
-    user.waiting = null;
+  if (userReminder && userReminder.waiting) {
 
-    saveDB(db);
+    userReminder.date = message;
+    userReminder.waiting = false;
+
+    saveReminders(reminders);
 
     return res.json({
-      reply: `Saved 😤🔥 I’ll remind you before your ${user.events.at(-1).type} 💙`
+      reply: `Saved 😤🔥 I’ll remind you before your ${userReminder.type} 💙`
     });
   }
 
 
-  // STEP 3: Recall
-  if (message.toLowerCase().includes("when")) {
+  // =========================
+  // STEP 2: If exam already saved
+  // =========================
 
-    const type = detectEvent(message);
+  if (
+    userReminder &&
+    text.includes(userReminder.type)
+  ) {
 
-    if (type) {
-
-      const e = user.events.find(x => x.type === type);
-
-      if (e) {
-
-        return res.json({
-          reply: `Bro 😭 your ${type} is on ${e.date} ${e.time || ""} 💙🔥`
-        });
-
-      } else {
-
-        return res.json({
-          reply: `I don’t see any ${type} saved yet 😅`
-        });
-      }
-    }
+    return res.json({
+      reply: `Brooo 😭 your ${userReminder.type} is ${userReminder.date} remember? You got this 💙🔥`
+    });
   }
 
 
-  // STEP 1: Detect new event
+  // =========================
+  // STEP 3: Detect new event
+  // =========================
+
   const event = detectEvent(message);
 
   if (event) {
 
-    user.waiting = event;
+    // Remove old reminder if exists
+    reminders = reminders.filter(r => r.token !== fcmToken);
 
-    saveDB(db);
+    reminders.push({
+      type: event,
+      date: null,
+      token: fcmToken,
+      waiting: true
+    });
+
+    saveReminders(reminders);
 
     return res.json({
       reply: `Oh damn 😭 when exactly is your ${event}? Date + time bro 💙`
@@ -161,23 +151,27 @@ app.post("/chat", async (req, res) => {
   }
 
 
-  // Normal Chat
+  // =========================
+  // STEP 4: Normal AI Chat
+  // =========================
+
   try {
 
     const completion = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
-
-      temperature: 0.9,
-
       max_tokens: 120,
+      temperature: 0.9,
 
       messages: [
         {
           role: "system",
           content: `
-You are Harsimar's supportive best friend.
-Casual tone. Emojis. Short replies.
+You are Harsimar's close best friend.
+Talk casual. Use emojis.
+Be supportive.
+Keep replies short.
+No robotic tone.
 `
         },
         {
@@ -187,19 +181,20 @@ Casual tone. Emojis. Short replies.
       ]
     });
 
-    res.json({
-      reply: completion.choices[0].message.content
-    });
+    const reply = completion.choices[0].message.content;
 
-  } catch {
+    res.json({ reply });
+
+  } catch (err) {
+
+    console.log(err);
 
     res.json({
-      reply: "Bro 😭 brain lag. Try again 💙"
+      reply: "Brooo 😭 brain froze. Try again 💙"
     });
   }
 
 });
-
 
 // ================= DAILY NOTIFY =================
 
