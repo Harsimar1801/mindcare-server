@@ -1,0 +1,59 @@
+const chat = document.getElementById("chat");
+
+// Welcome message
+addMessage("Hi! I'm MindCare. How are you feeling today? 😊", "bot");
+
+function send() {
+
+    let text = document.getElementById("msg").value;
+
+    if (text === "") return;
+
+    addMessage("You: " + text, "user");
+
+    let reply = getReply(text.toLowerCase());
+
+    setTimeout(() => {
+        addMessage("MindCare: " + reply, "bot");
+    }, 500);
+
+    document.getElementById("msg").value = "";
+}
+
+// Add message
+function addMessage(text, type) {
+
+    let div = document.createElement("div");
+
+    div.className = type;
+
+    div.innerText = text;
+
+    chat.appendChild(div);
+
+    chat.scrollTop = chat.scrollHeight;
+}
+
+// Bot replies
+function getReply(msg) {
+
+    if (msg.includes("sad"))
+        return "I'm sorry you're feeling sad. Want to talk about it? ❤️";
+
+    if (msg.includes("stress"))
+        return "Stress is tough. Try slow breathing with me. Inhale...Exhale.";
+
+    if (msg.includes("lonely"))
+        return "You're not alone. I'm always here for you.";
+
+    if (msg.includes("anxious"))
+        return "Anxiety can feel heavy. You're safe right now.";
+
+    if (msg.includes("happy"))
+        return "That’s great! Tell me what made you happy 😊";
+
+    if (msg.includes("tired"))
+        return "Rest is important. Have you slept well lately?";
+
+    return "I'm listening. Please tell me more.";
+}
