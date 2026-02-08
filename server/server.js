@@ -1,3 +1,4 @@
+
 require("dotenv").config();
 
 const express = require("express");
@@ -20,6 +21,10 @@ admin.initializeApp({
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.get("/", (req, res) => {
+  res.send("🧠 MindCare Server is Running 💙🔥");
+});
+
 
 // Groq
 const groq = new Groq({
