@@ -369,7 +369,43 @@ cron.schedule("0 9 * * *", async () => {
 // ================= START =================
 
 const PORT = process.env.PORT || 3000;
+// ================= MANUAL PUSH =================
 
+app.post("/push-now", async (req, res) => {
+
+  const { token, title, body } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ error: "Token missing" });
+  }
+
+  try {
+
+    await admin.messaging().send({
+
+      token,
+
+      notification: {
+        title: title || "🧠 MindCare",
+        body: body || "Hey bro 💙"
+      }
+
+    });
+
+    res.json({
+      success: true,
+      msg: "Notification sent 😤🔥"
+    });
+
+  } catch (err) {
+
+    console.log("Push Error:", err);
+
+    res.status(500).json({
+      error: "Push failed 😭"
+    });
+  }
+});
 app.listen(PORT, () => {
   console.log("✅ Server running on", PORT);
 });
