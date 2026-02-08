@@ -1,18 +1,10 @@
-// ================= FCM TOKEN =================
+// ================= TOKEN =================
 
-// Called from Android WebView
 function setFCMToken(token) {
 
-  console.log("FCM Token Saved:", token);
+  console.log("Saved Token:", token);
 
   localStorage.setItem("fcmToken", token);
-
-}
-
-
-// Ask Android for token
-if (window.Android && window.Android.getFCMToken) {
-  window.Android.getFCMToken();
 }
 
 
@@ -21,23 +13,42 @@ if (window.Android && window.Android.getFCMToken) {
 
 if ("serviceWorker" in navigator) {
 
-  navigator.serviceWorker
-    .register("/sw.js")
-    .then(() => console.log("Service Worker Registered"))
-    .catch((err) => console.log("SW Error:", err));
-
+  navigator.serviceWorker.register("/sw.js")
+    .then(() => console.log("SW Ready"))
+    .catch(err => console.log(err));
 }
 
 
 
-// ================= CHAT UI =================
+// ================= PERMISSION =================
+
+async function askPermission() {
+
+  if ("Notification" in window) {
+
+    const p = await Notification.requestPermission();
+
+    console.log("Permission:", p);
+  }
+}
+
+askPermission();
+
+
+
+// ================= ANDROID BRIDGE =================
+
+if (window.Android && window.Android.getFCMToken) {
+  window.Android.getFCMToken();
+}
+
+
+
+// ================= UI =================
 
 const chat = document.getElementById("chat");
 const input = document.getElementById("msg");
 
-
-
-// Add message
 function addMessage(text, type) {
 
   const div = document.createElement("div");
@@ -53,51 +64,35 @@ function addMessage(text, type) {
 
 
 
-// Welcome
-addMessage("Yo Harsimar 😄💙 I'm here bro. Talk to me.", "bot");
+// ================= WELCOME =================
+
+addMessage("Yo Harsimar 😄💙 I'm here bro.", "bot");
 
 
 
-// ================= SEND MESSAGE =================
+// ================= SEND =================
 
 async function send() {
 
   const text = input.value.trim();
 
-  if (text === "") return;
-
-
-  // Get token
-  const token = localStorage.getItem("fcmToken");
-
-  if (!token) {
-
-    addMessage(
-      "MindCare: Bro 😭 notification setup loading... wait 2 sec 💙",
-      "bot"
-    );
-
-    return;
-  }
-
+  if (!text) return;
 
   addMessage("You: " + text, "user");
 
   input.value = "";
 
-
-  // Typing
   const typing = document.createElement("div");
 
   typing.className = "bot";
 
-  typing.innerText = "MindCare is typing...";
+  typing.innerText = "Typing...";
 
   chat.appendChild(typing);
 
-  chat.scrollTop = chat.scrollHeight;
 
 
+  const token = localStorage.getItem("fcmToken");
 
   try {
 
@@ -112,44 +107,34 @@ async function send() {
       body: JSON.stringify({
 
         message: text,
-
-        fcmToken: token   // ✅ ALWAYS SEND
+        fcmToken: token
 
       })
-
     });
 
 
     const data = await res.json();
 
-
     chat.removeChild(typing);
-
 
     addMessage("MindCare: " + data.reply, "bot");
 
+  }
 
-  } catch (err) {
-
-    console.log("Error:", err);
+  catch (err) {
 
     chat.removeChild(typing);
 
-    addMessage(
-      "MindCare: Bro 😭 server down. Try later 💙",
-      "bot"
-    );
+    addMessage("MindCare: Server down 😭", "bot");
   }
 }
 
 
 
-// ================= ENTER KEY =================
+// ================= ENTER =================
 
-input.addEventListener("keydown", (e) => {
+input.addEventListener("keydown", e => {
 
-  if (e.key === "Enter") {
-    send();
-  }
+  if (e.key === "Enter") send();
 
 });
