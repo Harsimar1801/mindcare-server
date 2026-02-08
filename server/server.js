@@ -1,78 +1,113 @@
-const path = require("path");
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
+const fs = require("fs");
+const cron = require("node-cron");
 const Groq = require("groq-sdk");
+const admin = require("firebase-admin");
 
+// Firebase
+const serviceAccount = require("./firebase-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+// App
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
-// Serve frontend
-app.use(express.static(path.join(__dirname, "public")));
-
-
-// Home route (fix Cannot GET /)
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// Groq client
+// Groq
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
+// Helpers
+const REMINDER_FILE = "./reminders.json";
+
+// Load reminders
+function loadReminders() {
+  if (!fs.existsSync(REMINDER_FILE)) return [];
+  return JSON.parse(fs.readFileSync(REMINDER_FILE));
+}
+
+// Save reminders
+function saveReminders(data) {
+  fs.writeFileSync(REMINDER_FILE, JSON.stringify(data, null, 2));
+}
+
+// Detect event
+function detectEvent(text) {
+  const keywords = ["exam", "test", "interview", "quiz", "presentation"];
+
+  return keywords.find(k => text.toLowerCase().includes(k));
+}
+
 // Chat API
 app.post("/chat", async (req, res) => {
 
+  const { message, fcmToken } = req.body;
+
+  let reminders = loadReminders();
+
+  // Check if user already waiting for date
+  let waiting = reminders.find(r => r.waiting === true);
+
+  // Step 2: User gives date
+  if (waiting) {
+
+    waiting.date = message;
+    waiting.waiting = false;
+
+    saveReminders(reminders);
+
+    return res.json({
+      reply: `Got you bro 💙 I’ll remind you after your ${waiting.type} 😤🔥`
+    });
+  }
+
+  // Step 1: Detect event
+  const event = detectEvent(message);
+
+  if (event) {
+
+    reminders.push({
+      type: event,
+      date: null,
+      token: fcmToken,
+      waiting: true
+    });
+
+    saveReminders(reminders);
+
+    return res.json({
+      reply: `Oh damn 😭 when is your ${event} exactly?`
+    });
+  }
+
+  // Normal AI reply
   try {
-
-    const userText = req.body.message;
-    const isCheckIn = req.body.isCheckIn || false;
-
-    if (!userText) {
-      return res.json({
-        reply: "Brooo 😭 say something na, I’m listening 💙"
-      });
-    }
-
-    // Human-style prompt
-    const systemPrompt = `
-You are MindCare — Harsimar’s close best friend.
-
-You are NOT a bot.
-You talk like a real human friend.
-
-Rules:
-- Use slang: bro, fr, tbh, lowkey, damn, nah, lol
-- Be emotional and real
-- Be supportive like bestie
-- Light friendly roasting sometimes
-- Use emojis 😭💙✨😂
-- Keep replies SHORT
-- No robotic tone
-- No therapy tone
-- No medical advice
-- Sometimes use "Harsimar"
-
-${isCheckIn ? "User is replying to daily check-in." : ""}
-`;
 
     const completion = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
-
-      max_tokens: 140,
+      max_tokens: 120,
       temperature: 0.9,
 
       messages: [
         {
           role: "system",
-          content: systemPrompt
+          content: `
+You are Harsimar's best friend.
+Talk casual. Use emojis. Be supportive.
+Keep replies short.
+`
         },
         {
           role: "user",
-          content: userText
+          content: message
         }
       ]
     });
@@ -81,19 +116,46 @@ ${isCheckIn ? "User is replying to daily check-in." : ""}
 
     res.json({ reply });
 
-  } catch (error) {
+  } catch (err) {
 
-    console.error("Groq Error:", error);
+    console.log(err);
 
-    res.status(500).json({
-      reply: "Brooo 😭 something broke. Try again in a sec 💙"
+    res.json({
+      reply: "Brooo 😭 brain froze. Try again 💙"
     });
   }
 });
 
-// Server start
+// Daily Reminder Check (9 AM)
+cron.schedule("0 9 * * *", async () => {
+
+  console.log("⏰ Checking reminders...");
+
+  let reminders = loadReminders();
+  let today = new Date().toDateString();
+
+  reminders.forEach(async (r) => {
+
+    if (!r.date) return;
+
+    if (new Date(r.date).toDateString() === today) {
+
+      await admin.messaging().send({
+        token: r.token,
+        notification: {
+          title: "🧠 MindCare",
+          body: `Hey bro 💙 how was your ${r.type}? 😤🔥`
+        }
+      });
+    }
+  });
+
+});
+
+
+// Start
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`✅ MindCare Server running on port ${PORT}`);
+  console.log("✅ Server running on", PORT);
 });
