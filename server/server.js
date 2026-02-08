@@ -1,4 +1,4 @@
-
+const path=require("path");
 require("dotenv").config();
 
 const express = require("express");
@@ -21,9 +21,7 @@ admin.initializeApp({
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.get("/", (req, res) => {
-  res.send("🧠 MindCare Server is Running 💙🔥");
-});
+app.use(express.static(path.join(__dirname, "public")));
 
 
 // Groq
