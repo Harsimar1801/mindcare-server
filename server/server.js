@@ -8,20 +8,20 @@ const cron = require("node-cron");
 const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
 
-// ================= FIREBASE SAFE INIT =================
+
+// ================= FIREBASE =================
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
   console.error("❌ FIREBASE_SERVICE_ACCOUNT missing");
   process.exit(1);
 }
 
-const serviceAccount = JSON.parse(
-  process.env.FIREBASE_SERVICE_ACCOUNT
-);
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
+
 
 // ================= APP =================
 
@@ -31,11 +31,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+
 // ================= GROQ =================
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
+
 
 // ================= FILE DB =================
 
@@ -50,6 +52,7 @@ function saveDB(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
+
 // ================= HELPERS =================
 
 function detectEvent(text) {
@@ -57,7 +60,9 @@ function detectEvent(text) {
   return words.find(w => text.toLowerCase().includes(w));
 }
 
-// Safe AI date parser
+
+// ================= SAFE DATE PARSER =================
+
 async function parseDate(text) {
 
   try {
@@ -72,11 +77,11 @@ async function parseDate(text) {
         {
           role: "system",
           content: `
-Return ONLY valid JSON:
+Return ONLY JSON:
 
 {
-  "date": "YYYY-MM-DD",
-  "time": "HH:MM" or null
+ "date":"YYYY-MM-DD",
+ "time":"HH:MM" or null
 }
 
 No explanation.
@@ -89,13 +94,10 @@ No explanation.
       ]
     });
 
-    const raw = res.choices[0].message.content;
-
-    return JSON.parse(raw);
+    return JSON.parse(res.choices[0].message.content);
 
   } catch {
 
-    // fallback if AI fails
     return {
       date: new Date().toISOString().slice(0,10),
       time: null
@@ -111,7 +113,7 @@ app.post("/chat", async (req, res) => {
   const { message, fcmToken } = req.body;
 
   if (!message || !fcmToken) {
-    return res.json({ reply: "Say something bro 😭💙" });
+    return res.json({ reply: "Bro 😭 say something na 💙" });
   }
 
   let db = loadDB();
@@ -120,27 +122,79 @@ app.post("/chat", async (req, res) => {
     db[fcmToken] = {
       memory: {},
       events: [],
-      history: []
+      history: [],
+      waitingFor: null
     };
   }
 
   const user = db[fcmToken];
 
 
-  // ================= SAVE USER MESSAGE =================
+
+  // ================= SAVE USER MSG =================
 
   user.history.push({
     role: "user",
     content: message
   });
 
-  // Keep last 10 messages only (memory limit)
-  if (user.history.length > 10) {
-    user.history.shift();
+  if (user.history.length > 12) user.history.shift();
+
+
+
+  // ================= IF WAITING FOR DATE =================
+
+  if (user.waitingFor) {
+
+    const parsed = await parseDate(message);
+
+    const event = {
+      type: user.waitingFor,
+      date: parsed.date,
+      time: parsed.time
+    };
+
+    user.events.push(event);
+
+    // Save in memory also
+    user.memory[`${user.waitingFor}_date`] = parsed.date;
+    user.memory[`${user.waitingFor}_time`] = parsed.time;
+
+    user.waitingFor = null;
+
+    saveDB(db);
+
+    return res.json({
+      reply: `Saved 😤🔥 Your ${event.type} is on ${event.date} 💙`
+    });
   }
 
 
-  // ================= MEMORY EXTRACTOR =================
+
+  // ================= DETECT NEW EVENT =================
+
+  const detected = detectEvent(message);
+
+  if (detected) {
+
+    // If already saved, don't ask again
+    const exists = user.events.find(e => e.type === detected);
+
+    if (!exists) {
+
+      user.waitingFor = detected;
+
+      saveDB(db);
+
+      return res.json({
+        reply: `Oh damn 😭 when is your ${detected}? Date + time bro 💙`
+      });
+    }
+  }
+
+
+
+  // ================= MEMORY EXTRACT =================
 
   const memoryAI = await groq.chat.completions.create({
 
@@ -148,7 +202,7 @@ app.post("/chat", async (req, res) => {
 
     temperature: 0.2,
 
-    max_tokens: 250,
+    max_tokens: 200,
 
     messages: [
 
@@ -163,9 +217,7 @@ Return JSON:
  "memory": {
    "name": null,
    "friend": null,
-   "college": null,
-   "exam_date": null,
-   "exam_time": null
+   "college": null
  }
 }
 
@@ -178,18 +230,17 @@ Only JSON.
   });
 
 
-  let extracted = {};
+  let extracted = { memory: {} };
 
   try {
     extracted = JSON.parse(memoryAI.choices[0].message.content);
-  } catch {
-    extracted = { memory: {} };
-  }
+  } catch {}
+
 
 
   // ================= SAVE MEMORY =================
 
-  for (const key in extracted.memory || {}) {
+  for (const key in extracted.memory) {
 
     if (extracted.memory[key]) {
       user.memory[key] = extracted.memory[key];
@@ -197,7 +248,8 @@ Only JSON.
   }
 
 
-  // ================= MAIN CHAT AI =================
+
+  // ================= MAIN AI =================
 
   const chatAI = await groq.chat.completions.create({
 
@@ -205,23 +257,24 @@ Only JSON.
 
     temperature: 0.9,
 
-    max_tokens: 200,
+    max_tokens: 180,
 
     messages: [
 
       {
         role: "system",
         content: `
-You are Harsimar's caring best friend.
+You are Harsimar's close best friend.
 
 User profile:
 ${JSON.stringify(user.memory)}
 
 Rules:
+- Remember past chats
 - Be consistent
-- Continue conversations
 - Use emojis
-- Be supportive
+- Casual GenZ tone
+- Don't repeat questions
 `
       },
 
@@ -233,7 +286,8 @@ Rules:
   const reply = chatAI.choices[0].message.content;
 
 
-  // ================= SAVE BOT MESSAGE =================
+
+  // ================= SAVE BOT MSG =================
 
   user.history.push({
     role: "assistant",
@@ -245,6 +299,39 @@ Rules:
 
   res.json({ reply });
 });
+
+
+
+// ================= MANUAL PUSH =================
+
+app.post("/push-now", async (req, res) => {
+
+  const { token, title, body } = req.body;
+
+  if (!token) return res.status(400).json({ error: "Token missing" });
+
+  try {
+
+    await admin.messaging().send({
+
+      token,
+
+      notification: {
+        title: title || "🧠 MindCare",
+        body: body || "Hey bro 💙"
+      }
+    });
+
+    res.json({ success: true });
+
+  } catch (err) {
+
+    console.log(err);
+
+    res.status(500).json({ error: "Push failed 😭" });
+  }
+});
+
 
 
 // ================= DAILY REMINDER =================
@@ -276,6 +363,7 @@ cron.schedule("0 9 * * *", async () => {
     }
   }
 });
+
 
 
 // ================= START =================

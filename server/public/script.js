@@ -1,9 +1,7 @@
 // ================= TOKEN =================
 
 function setFCMToken(token) {
-
   console.log("Saved Token:", token);
-
   localStorage.setItem("fcmToken", token);
 }
 
@@ -12,10 +10,10 @@ function setFCMToken(token) {
 // ================= SERVICE WORKER =================
 
 if ("serviceWorker" in navigator) {
-
-  navigator.serviceWorker.register("/sw.js")
+  navigator.serviceWorker
+    .register("/sw.js")
     .then(() => console.log("SW Ready"))
-    .catch(err => console.log(err));
+    .catch(err => console.log("SW Error:", err));
 }
 
 
@@ -23,11 +21,8 @@ if ("serviceWorker" in navigator) {
 // ================= PERMISSION =================
 
 async function askPermission() {
-
   if ("Notification" in window) {
-
     const p = await Notification.requestPermission();
-
     console.log("Permission:", p);
   }
 }
@@ -52,13 +47,10 @@ const input = document.getElementById("msg");
 function addMessage(text, type) {
 
   const div = document.createElement("div");
-
   div.className = type;
-
   div.innerText = text;
 
   chat.appendChild(div);
-
   chat.scrollTop = chat.scrollHeight;
 }
 
@@ -82,17 +74,16 @@ async function send() {
 
   input.value = "";
 
+
+  // Typing indicator
   const typing = document.createElement("div");
-
   typing.className = "bot";
-
-  typing.innerText = "Typing...";
-
+  typing.innerText = "MindCare is typing...";
   chat.appendChild(typing);
 
 
-
   const token = localStorage.getItem("fcmToken");
+
 
   try {
 
@@ -105,10 +96,8 @@ async function send() {
       },
 
       body: JSON.stringify({
-
         message: text,
         fcmToken: token
-
       })
     });
 
@@ -123,9 +112,11 @@ async function send() {
 
   catch (err) {
 
+    console.log(err);
+
     chat.removeChild(typing);
 
-    addMessage("MindCare: Server down 😭", "bot");
+    addMessage("MindCare: Server down 😭 Try later bro 💙", "bot");
   }
 }
 
@@ -134,44 +125,5 @@ async function send() {
 // ================= ENTER =================
 
 input.addEventListener("keydown", e => {
-
   if (e.key === "Enter") send();
-
-});
-// ================= MANUAL PUSH API =================
-
-app.post("/push-now", async (req, res) => {
-
-  const { token, title, body } = req.body;
-
-  if (!token) {
-    return res.status(400).json({ error: "Token missing" });
-  }
-
-  try {
-
-    await admin.messaging().send({
-
-      token,
-
-      notification: {
-        title: title || "🧠 MindCare",
-        body: body || "Hey bro 💙"
-      }
-
-    });
-
-    res.json({
-      success: true,
-      msg: "Notification sent 😤🔥"
-    });
-
-  } catch (err) {
-
-    console.log("Push Error:", err);
-
-    res.status(500).json({
-      error: "Push failed 😭"
-    });
-  }
 });
