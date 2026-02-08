@@ -1,4 +1,5 @@
 require("dotenv").config();
+const path = require("path");
 
 const express = require("express");
 const cors = require("cors");
@@ -21,6 +22,9 @@ admin.initializeApp({
 const app = express();
 app.use(cors());
 app.use(express.json());
+// Serve frontend files
+app.use(express.static(path.join(__dirname, "public")));
+
 
 // ---------------- GROQ ----------------
 
