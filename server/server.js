@@ -110,140 +110,140 @@ app.post("/chat", async (req, res) => {
 
   const { message, fcmToken } = req.body;
 
-  if (!message) {
+  if (!message || !fcmToken) {
     return res.json({ reply: "Say something bro 😭💙" });
-  }
-
-  if (!fcmToken) {
-    return res.json({
-      reply: "Bro 😭 notifications not ready yet."
-    });
   }
 
   let db = loadDB();
 
   if (!db[fcmToken]) {
-    db[fcmToken] = { events: [], waiting: null };
+    db[fcmToken] = {
+      memory: {},
+      events: [],
+      history: []
+    };
   }
 
   const user = db[fcmToken];
 
 
-  // ===== STEP 2: Save date/time =====
+  // ================= SAVE USER MESSAGE =================
 
-  if (user.waiting) {
+  user.history.push({
+    role: "user",
+    content: message
+  });
 
-    const parsed = await parseDate(message);
-
-    user.events.push({
-      type: user.waiting,
-      date: parsed.date,
-      time: parsed.time,
-      raw: message
-    });
-
-    user.waiting = null;
-
-    saveDB(db);
-
-    const last = user.events[user.events.length - 1];
-
-    return res.json({
-      reply: `Saved 😤🔥 Your ${last.type} is on ${last.date} ${last.time || ""} 💙`
-    });
+  // Keep last 10 messages only (memory limit)
+  if (user.history.length > 10) {
+    user.history.shift();
   }
 
 
-  // ===== STEP 3: Recall =====
+  // ================= MEMORY EXTRACTOR =================
 
-  if (message.toLowerCase().includes("when")) {
+  const memoryAI = await groq.chat.completions.create({
 
-    const type = detectEvent(message);
+    model: "llama-3.1-8b-instant",
 
-    if (type) {
+    temperature: 0.2,
 
-      const e = user.events.find(x => x.type === type);
+    max_tokens: 250,
 
-      if (e) {
+    messages: [
 
-        return res.json({
-          reply: `Bro 💙 your ${type} is on ${e.date} ${e.time || ""} 😤🔥`
-        });
+      {
+        role: "system",
+        content: `
+Extract personal info.
 
-      } else {
+Return JSON:
 
-        return res.json({
-          reply: `I don’t see any ${type} saved yet 😅`
-        });
-      }
-    }
-  }
+{
+ "memory": {
+   "name": null,
+   "friend": null,
+   "college": null,
+   "exam_date": null,
+   "exam_time": null
+ }
+}
 
+Only JSON.
+`
+      },
 
-  // ===== STEP 1: New event =====
-
-  const event = detectEvent(message);
-
-  if (event) {
-
-    // Prevent duplicate
-    const exists = user.events.find(e => e.type === event);
-
-    if (exists) {
-
-      return res.json({
-        reply: `You already told me about your ${event} bro 😭💙 It’s on ${exists.date}`
-      });
-    }
-
-    user.waiting = event;
-
-    saveDB(db);
-
-    return res.json({
-      reply: `Oh damn 😭 when is your ${event}? Date + time 💙`
-    });
-  }
+      ...user.history
+    ]
+  });
 
 
-  // ===== NORMAL CHAT =====
+  let extracted = {};
 
   try {
-
-    const completion = await groq.chat.completions.create({
-
-      model: "llama-3.1-8b-instant",
-
-      temperature: 0.9,
-
-      max_tokens: 120,
-
-      messages: [
-        {
-          role: "system",
-          content: `
-You are Harsimar's best friend.
-Casual. Emojis. Supportive.
-No robotic tone.
-`
-        },
-        {
-          role: "user",
-          content: message
-        }
-      ]
-    });
-
-    res.json({
-      reply: completion.choices[0].message.content
-    });
-
+    extracted = JSON.parse(memoryAI.choices[0].message.content);
   } catch {
-
-    res.json({
-      reply: "Bro 😭 brain lag. Try again 💙"
-    });
+    extracted = { memory: {} };
   }
+
+
+  // ================= SAVE MEMORY =================
+
+  for (const key in extracted.memory || {}) {
+
+    if (extracted.memory[key]) {
+      user.memory[key] = extracted.memory[key];
+    }
+  }
+
+
+  // ================= MAIN CHAT AI =================
+
+  const chatAI = await groq.chat.completions.create({
+
+    model: "llama-3.1-8b-instant",
+
+    temperature: 0.9,
+
+    max_tokens: 200,
+
+    messages: [
+
+      {
+        role: "system",
+        content: `
+You are Harsimar's caring best friend.
+
+User profile:
+${JSON.stringify(user.memory)}
+
+Rules:
+- Be consistent
+- Continue conversations
+- Use emojis
+- Be supportive
+`
+      },
+
+      ...user.history
+    ]
+  });
+
+
+  const reply = chatAI.choices[0].message.content;
+
+
+  // ================= SAVE BOT MESSAGE =================
+
+  user.history.push({
+    role: "assistant",
+    content: reply
+  });
+
+  saveDB(db);
+
+
+  res.json({ reply });
 });
 
 
