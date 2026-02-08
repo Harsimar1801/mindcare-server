@@ -138,3 +138,40 @@ input.addEventListener("keydown", e => {
   if (e.key === "Enter") send();
 
 });
+// ================= MANUAL PUSH API =================
+
+app.post("/push-now", async (req, res) => {
+
+  const { token, title, body } = req.body;
+
+  if (!token) {
+    return res.status(400).json({ error: "Token missing" });
+  }
+
+  try {
+
+    await admin.messaging().send({
+
+      token,
+
+      notification: {
+        title: title || "🧠 MindCare",
+        body: body || "Hey bro 💙"
+      }
+
+    });
+
+    res.json({
+      success: true,
+      msg: "Notification sent 😤🔥"
+    });
+
+  } catch (err) {
+
+    console.log("Push Error:", err);
+
+    res.status(500).json({
+      error: "Push failed 😭"
+    });
+  }
+});
