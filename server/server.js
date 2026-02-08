@@ -8,7 +8,9 @@ const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
 
 // Firebase
-const serviceAccount = require("./firebase-key.json");
+const serviceAccount = JSON.parse(
+  process.env.FIREBASE_SERVICE_ACCOUNT
+);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
