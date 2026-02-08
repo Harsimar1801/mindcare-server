@@ -20,8 +20,7 @@ content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
   <div class="app">
 
     <div class="header">
-      <h1>🧠 MindCare</h1>
-      <p>Your AI mental wellness companion</p>
+      <h1> MindCare</h1>
     </div>
 
     <div id="chat"></div>
@@ -33,7 +32,11 @@ content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
         placeholder="Type how you're feeling..."
         autocomplete="off"
       />
-      <button onclick="send()">Send</button>
+<button class="send-btn" onclick="send()" aria-label="Send message">
+  ➤
+</button>
+
+</button>
     </div>
 
   </div>
