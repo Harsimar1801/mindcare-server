@@ -1,33 +1,4 @@
-function setFCMToken(token) {
-
-  console.log("FCM Token Saved:", token);
-
-  localStorage.setItem("fcmToken", token);
-}
-
-// ================= SERVICE WORKER =================
-
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker
-    .register("/sw.js")
-    .then(() => console.log("Service Worker Registered"))
-    .catch((err) => console.log("SW Error:", err));
-}
-
-
-// ================= NOTIFICATION PERMISSION =================
-
-async function askPermission() {
-  if ("Notification" in window) {
-    const permission = await Notification.requestPermission();
-    console.log("Permission:", permission);
-  }
-}
-
-askPermission();
-
-
-// ================= FCM TOKEN (ANDROID → WEBVIEW) =================
+// ================= FCM TOKEN =================
 
 // Called from Android WebView
 function setFCMToken(token) {
@@ -35,42 +6,35 @@ function setFCMToken(token) {
   console.log("FCM Token Saved:", token);
 
   localStorage.setItem("fcmToken", token);
+
 }
 
 
-// Ask Android app for token
+// Ask Android for token
 if (window.Android && window.Android.getFCMToken) {
   window.Android.getFCMToken();
 }
 
 
-// ================= DEMO NOTIFICATION =================
 
-function sendDemoNotification() {
+// ================= SERVICE WORKER =================
 
-  if (Notification.permission === "granted") {
+if ("serviceWorker" in navigator) {
 
-    new Notification("🧠 MindCare Check-in", {
-      body: "Hey Harsimar 💙 How are you feeling today?",
-      icon: "/icon.png"
-    });
+  navigator.serviceWorker
+    .register("/sw.js")
+    .then(() => console.log("Service Worker Registered"))
+    .catch((err) => console.log("SW Error:", err));
 
-  }
 }
 
-
-// Test after 5 sec
-setTimeout(sendDemoNotification, 5000);
-
-
-// Daily
-setInterval(sendDemoNotification, 24 * 60 * 60 * 1000);
 
 
 // ================= CHAT UI =================
 
 const chat = document.getElementById("chat");
 const input = document.getElementById("msg");
+
 
 
 // Add message
@@ -88,8 +52,10 @@ function addMessage(text, type) {
 }
 
 
+
 // Welcome
 addMessage("Yo Harsimar 😄💙 I'm here bro. Talk to me.", "bot");
+
 
 
 // ================= SEND MESSAGE =================
@@ -101,11 +67,26 @@ async function send() {
   if (text === "") return;
 
 
+  // Get token
+  const token = localStorage.getItem("fcmToken");
+
+  if (!token) {
+
+    addMessage(
+      "MindCare: Bro 😭 notification setup loading... wait 2 sec 💙",
+      "bot"
+    );
+
+    return;
+  }
+
+
   addMessage("You: " + text, "user");
 
   input.value = "";
 
 
+  // Typing
   const typing = document.createElement("div");
 
   typing.className = "bot";
@@ -116,9 +97,6 @@ async function send() {
 
   chat.scrollTop = chat.scrollHeight;
 
-
-  // Get saved FCM token
-  const token = localStorage.getItem("fcmToken");
 
 
   try {
@@ -135,7 +113,7 @@ async function send() {
 
         message: text,
 
-        fcmToken: token   // ✅ SEND TOKEN
+        fcmToken: token   // ✅ ALWAYS SEND
 
       })
 
@@ -163,6 +141,7 @@ async function send() {
     );
   }
 }
+
 
 
 // ================= ENTER KEY =================
