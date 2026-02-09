@@ -35,21 +35,6 @@ if (window.Android && window.Android.getFCMToken) {
 }
 
 
-// ================= DEMO NOTIFICATION =================
-
-function sendDemoNotification() {
-  if (Notification.permission === "granted") {
-    new Notification("🧠 MindCare Check-in", {
-      body: "Hey Harsimar 💙 How are you feeling today?",
-      icon: "/icon.png"
-    });
-  }
-}
-
-setTimeout(sendDemoNotification, 5000);
-setInterval(sendDemoNotification, 24 * 60 * 60 * 1000);
-
-
 // ================= UI =================
 
 const chat = document.getElementById("chat");
@@ -115,7 +100,6 @@ function addMessage(text, type) {
 
   chat.scrollTop = chat.scrollHeight;
 
-  // ✅ Auto save
   saveChat();
 }
 
@@ -125,11 +109,51 @@ function addMessage(text, type) {
 loadChat();
 
 
-// ================= WELCOME =================
+// ================= MOOD FIRST MESSAGE =================
 
-// Only show welcome if chat is empty
-if (chat.children.length === 0) {
-  addMessage("Yo Harsimar 😄💙 I'm here bro.", "bot");
+function getMoodWelcome(mood) {
+
+  const map = {
+    happy: "😄 You sound happy today bro! What made you smile? 💙",
+    sad: "🥺 You seem low today… want to talk about it?",
+    anxious: "😰 Feeling anxious? I'm here with you. What’s going on?",
+    calm: "😌 You seem calm today. What’s on your mind?",
+    tired: "😴 You look tired bro… rough day?",
+    lonely: "💙 Feeling alone? You’re not alone here.",
+    excited: "🔥 Damn you sound excited! Tell me more!",
+    neutral: "Hey bro 💙 How are you feeling today?"
+  };
+
+  return map[mood] || map.neutral;
+}
+
+
+// Show first message if empty
+function showInitialMessage() {
+
+  if (chat.children.length > 0) return;
+
+  const mood = localStorage.getItem("userMood") || "neutral";
+
+  const msg = getMoodWelcome(mood);
+
+  addMessage("MindCare: " + msg, "bot");
+}
+
+showInitialMessage();
+
+
+// ================= CONTINUE LAST AI =================
+
+const lastAI = localStorage.getItem("lastAIReply");
+
+if (chat.children.length > 0 && lastAI) {
+
+  setTimeout(() => {
+
+    addMessage("MindCare: " + lastAI, "bot");
+
+  }, 500);
 }
 
 
@@ -181,6 +205,9 @@ async function send() {
 
     addMessage("MindCare: " + data.reply, "bot");
 
+    // Save last AI
+    localStorage.setItem("lastAIReply", data.reply);
+
   }
 
   catch (err) {
@@ -202,7 +229,7 @@ input.addEventListener("keydown", e => {
 
 
 // =====================================
-// 🧠 MINDCARE SMART THEME ENGINE
+// 🧠 SMART THEME ENGINE
 // =====================================
 
 
@@ -338,3 +365,18 @@ if (themePicker) {
     localStorage.setItem("themeColor", color);
   });
 }
+
+
+// ================= NOTIFICATION AUTO MESSAGE =================
+
+window.addEventListener("load", () => {
+
+  const notifMsg = localStorage.getItem("notifMessage");
+
+  if (notifMsg) {
+
+    addMessage("MindCare: " + notifMsg, "bot");
+
+    localStorage.removeItem("notifMessage");
+  }
+});
