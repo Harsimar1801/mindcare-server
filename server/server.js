@@ -119,28 +119,31 @@ Return JSON ONLY:
 async function parseDate(text) {
   try {
 
-    const now = new Date();
+    const now = Date.now();
 
     const res = await groq.chat.completions.create({
+
       model: "llama-3.1-8b-instant",
       temperature: 0,
+
       messages: [
         {
           role: "system",
           content: `
-Current time: ${now.toISOString()}
+Current timestamp: ${now}
 
-Convert to REAL timestamp.
+Convert user message to FUTURE timestamp.
 
-Return JSON ONLY:
+Rules:
+- Always return time in future
+- If user says "in 5 min", add to now
+- Never return past time
+
+Return ONLY JSON:
 
 {
  "timestamp": number
 }
-
-Examples:
-"in 5 min"
-"tomorrow 9am"
 `
         },
         {
@@ -150,13 +153,22 @@ Examples:
       ]
     });
 
-    return JSON.parse(res.choices[0].message.content);
+    const parsed = JSON.parse(res.choices[0].message.content);
 
-  } catch {
+    // 🚨 SAFETY CHECK
+    if (!parsed.timestamp || parsed.timestamp <= now) {
+      throw new Error("Invalid past time");
+    }
 
-    // fallback: +10 min
+    return parsed;
+
+  } catch (err) {
+
+    console.log("⚠️ Time AI failed, using fallback");
+
+    // ✅ SAFE fallback: +5 minutes
     return {
-      timestamp: Date.now() + 10 * 60000
+      timestamp: Date.now() + 5 * 60 * 1000
     };
   }
 }
@@ -347,7 +359,7 @@ cron.schedule("*/30 * * * * *", async () => {
         // 🔥 5 MIN BEFORE (±60 sec buffer)
         if (
           diff <= 5 * 60 * 1000 &&
-          diff > 3.5 * 60 * 1000 &&
+          diff > 2 * 60 * 1000 &&
           !e.notified.five
         ) {
 
