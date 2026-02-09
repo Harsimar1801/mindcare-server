@@ -126,7 +126,9 @@ function randomFrom(arr) {
 
 function parseDate(text) {
 
-  const match = text.toLowerCase().match(/(\d+)\s*(min|mins|minute|minutes)/);
+  const match = text
+    .toLowerCase()
+    .match(/(\d+)\s*(min|mins|minute|minutes)/);
 
   if (!match) return null;
 
@@ -302,13 +304,12 @@ cron.schedule("*/30 * * * * *", async () => {
 
             notification: {
               title: "🔥 You Got This",
-              body: msg,
-              // click_action: "FLUTTER_NOTIFICATION_CLICK"
+              body: msg
             },
 
             data: {
-              msg: msg,
-              // url: "/chat.html?msg=" + encodeURIComponent(msg)
+              message: msg,
+              url: "/chat.html?message=" + encodeURIComponent(msg)
             }
 
           });
@@ -331,13 +332,12 @@ cron.schedule("*/30 * * * * *", async () => {
 
             notification: {
               title: "💙 Proud of You",
-              body: msg,
-              click_action: "FLUTTER_NOTIFICATION_CLICK"
+              body: msg
             },
 
             data: {
-              msg: msg,
-              url: "/chat.html?msg=" + encodeURIComponent(msg)
+              message: msg,
+              url: "/chat.html?message=" + encodeURIComponent(msg)
             }
 
           });
