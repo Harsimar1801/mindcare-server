@@ -230,7 +230,16 @@ async function send() {
 
 
     const data = await res.json();
+// ================= APPLY MOOD =================
 
+if (data.mood) {
+
+  localStorage.setItem("userMood", data.mood);
+
+  if (moodThemes[data.mood]) {
+    applyTheme(moodThemes[data.mood]);
+  }
+}
     chat.removeChild(typing);
 
     addMessage("MindCare: " + data.reply, "bot");

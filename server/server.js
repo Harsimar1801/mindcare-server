@@ -136,7 +136,6 @@ async function parseDate(text) {
     const mins = parseInt(minMatch[1]);
 
     if (!isNaN(mins)) {
-
       return {
         timestamp: now + mins * 60 * 1000
       };
@@ -243,7 +242,10 @@ app.post("/chat", async (req, res) => {
     const { message, fcmToken } = req.body;
 
     if (!message || !fcmToken) {
-      return res.json({ reply: "Bro 😭 kuch bol na 💙" });
+      return res.json({
+        reply: "Bro 😭 kuch bol na 💙",
+        mood: null
+      });
     }
 
 
@@ -279,28 +281,23 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= MOOD CHECK (NO RETURN) =================
+    // ================= MOOD CHECK (FINAL FIX) =================
 
     const mood = detectMood(message);
 
-    if (mood && user.profile.mood !== mood) {
+    if (mood) {
 
-      user.profile.mood = mood;
-
-      saveDB(db);
+      if (user.profile.mood !== mood) {
+        user.profile.mood = mood;
+        saveDB(db);
+      }
 
       if (moodReplies[mood]) {
 
-        const moodMsg = randomFrom(moodReplies[mood]);
-
-        user.history.push({
-          role: "assistant",
-          content: moodMsg
+        return res.json({
+          reply: randomFrom(moodReplies[mood]),
+          mood: mood
         });
-
-        saveDB(db);
-
-        return res.json({ reply: moodMsg });
       }
     }
 
@@ -325,7 +322,8 @@ app.post("/chat", async (req, res) => {
       saveDB(db);
 
       return res.json({
-        reply: `Saved 😤🔥 ${event.title} at ${formatTime(event.timestamp)} 💙`
+        reply: `Saved 😤🔥 ${event.title} at ${formatTime(event.timestamp)} 💙`,
+        mood: user.profile.mood
       });
     }
 
@@ -352,7 +350,8 @@ app.post("/chat", async (req, res) => {
         saveDB(db);
 
         return res.json({
-          reply: `Got you 😤🔥 ${aiEvent.title} at ${formatTime(event.timestamp)} 💙`
+          reply: `Got you 😤🔥 ${aiEvent.title} at ${formatTime(event.timestamp)} 💙`,
+          mood: user.profile.mood
         });
       }
 
@@ -361,7 +360,8 @@ app.post("/chat", async (req, res) => {
       saveDB(db);
 
       return res.json({
-        reply: `Kab hai "${aiEvent.title}"? ⏰💙`
+        reply: `Kab hai "${aiEvent.title}"? ⏰💙`,
+        mood: user.profile.mood
       });
     }
 
@@ -406,14 +406,19 @@ Keep short.
     saveDB(db);
 
 
-    res.json({ reply });
+    res.json({
+      reply,
+      mood: user.profile.mood
+    });
+
 
   } catch (err) {
 
     console.log("🔥 CHAT ERROR:", err);
 
     res.json({
-      reply: "Bro 😭 server lag gaya 💙"
+      reply: "Bro 😭 server lag gaya 💙",
+      mood: null
     });
   }
 });
@@ -440,7 +445,7 @@ cron.schedule("*/30 * * * * *", async () => {
 
 
 
-        // ===== 5 MIN BEFORE =====
+        // 5 MIN BEFORE
         if (
           diff <= 5 * 60 * 1000 &&
           diff > 3 * 60 * 1000 &&
@@ -470,7 +475,7 @@ cron.schedule("*/30 * * * * *", async () => {
 
 
 
-        // ===== AFTER EVENT =====
+        // AFTER
         if (
           diff <= -2 * 60 * 1000 &&
           !e.notified.after
