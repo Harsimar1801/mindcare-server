@@ -135,34 +135,34 @@ function getMoodWelcome(mood) {
 
 // ================= INITIAL MESSAGE =================
 
-function showInitialMessage() {
+// function showInitialMessage() {
 
-  // If chat already exists → no welcome
-  if (chat.children.length > 0) return;
-
-
-  // Check notification first
-  const notif = localStorage.getItem("notifMessage");
-
-  if (notif) {
-
-    addMessage("MindCare: " + notif, "bot");
-
-    localStorage.removeItem("notifMessage");
-
-    return;
-  }
+//   // If chat already exists → no welcome
+//   if (chat.children.length > 0) return;
 
 
-  // Mood welcome
-  const mood = localStorage.getItem("userMood") || "neutral";
+//   // Check notification first
+//   const notif = localStorage.getItem("notifMessage");
 
-  const msg = getMoodWelcome(mood);
+//   if (notif) {
 
-  addMessage("MindCare: " + msg, "bot");
-}
+//     addMessage("MindCare: " + notif, "bot");
 
-showInitialMessage();
+//     localStorage.removeItem("notifMessage");
+
+//     return;
+//   }
+
+
+//   // Mood welcome
+//   const mood = localStorage.getItem("userMood") || "neutral";
+
+//   const msg = getMoodWelcome(mood);
+
+//   addMessage("MindCare: " + msg, "bot");
+// }
+
+
 
 
 
@@ -242,7 +242,17 @@ if (data.mood) {
 }
     chat.removeChild(typing);
 
-    addMessage("MindCare: " + data.reply, "bot");
+addMessage("MindCare: " + data.reply, "bot");
+
+// ✅ SAVE MOOD FROM SERVER
+if (data.mood) {
+  localStorage.setItem("userMood", data.mood);
+
+  // Apply theme instantly
+  if (moodThemes[data.mood]) {
+    applyTheme(moodThemes[data.mood]);
+  }
+}
 
   }
 
