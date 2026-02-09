@@ -298,26 +298,47 @@ app.post("/chat", async (req, res) => {
 
     // ================= EVENT DETECT =================
 
-    const aiEvent = await detectEventAI(message);
+ // ================= EVENT DETECT =================
 
-    if (aiEvent.hasEvent && !user.waitingFor) {
+const aiEvent = await detectEventAI(message);
 
-      const exists = user.events.find(e => e.title === aiEvent.title);
+if (aiEvent.hasEvent && !user.waitingFor) {
 
-      if (!exists) {
+  // Try parsing date from SAME message
+  const parsed = await parseDate(message);
 
-        user.waitingFor = {
-          title: aiEvent.title,
-          description: aiEvent.description
-        };
+  // If AI understood time → save directly
+  if (parsed.date) {
 
-        saveDB(db);
+    const event = {
+      title: aiEvent.title,
+      description: aiEvent.description,
+      date: parsed.date,
+      time: parsed.time,
+      notified: {}
+    };
 
-        return res.json({
-          reply: `Ohhh 😭💙 when is "${aiEvent.title}"? Date + time bro 🔥`
-        });
-      }
-    }
+    user.events.push(event);
+
+    saveDB(db);
+
+    return res.json({
+      reply: `Got you 😤🔥 "${event.title}" in ${parsed.time || "some time"} 💙 Stay strong`
+    });
+  }
+
+  // Else ask user
+  user.waitingFor = {
+    title: aiEvent.title,
+    description: aiEvent.description
+  };
+
+  saveDB(db);
+
+  return res.json({
+    reply: `Ohhh 😭💙 when is "${aiEvent.title}"? Date + time bro 🔥`
+  });
+}
 
 
 
