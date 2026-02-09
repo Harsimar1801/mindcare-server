@@ -8,7 +8,6 @@ const cron = require("node-cron");
 const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
 
-
 // ================= FIREBASE =================
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -22,7 +21,6 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-
 // ================= APP =================
 
 const app = express();
@@ -31,13 +29,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-
 // ================= GROQ =================
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
-
 
 // ================= FILE DB =================
 
@@ -52,11 +48,20 @@ function saveDB(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
-
 // ================= HELPERS =================
 
-function detectMood(text) {
+function formatTime(ts) {
+  return new Date(ts).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    day: "numeric",
+    month: "short"
+  });
+}
 
+function detectMood(text) {
   text = text.toLowerCase();
 
   if (text.includes("sad") || text.includes("cry")) return "low";
@@ -67,31 +72,19 @@ function detectMood(text) {
   return null;
 }
 
-
 function detectName(text) {
-
   const match = text.match(/my name is (\w+)/i);
-
-  if (match) return match[1];
-
-  return null;
+  return match ? match[1] : null;
 }
-
 
 // ================= EVENT AI =================
 
 async function detectEventAI(text) {
-
   try {
-
     const res = await groq.chat.completions.create({
-
       model: "llama-3.1-8b-instant",
-
       temperature: 0,
-
       max_tokens: 120,
-
       messages: [
         {
           role: "system",
@@ -117,38 +110,27 @@ Return JSON ONLY:
     return JSON.parse(res.choices[0].message.content);
 
   } catch {
-
-    return {
-      hasEvent: false,
-      title: null,
-      description: null
-    };
+    return { hasEvent: false };
   }
 }
-
-
 
 // ================= DATE PARSER =================
 
 async function parseDate(text) {
-
   try {
 
     const now = new Date();
 
     const res = await groq.chat.completions.create({
-
       model: "llama-3.1-8b-instant",
-
       temperature: 0,
-
       messages: [
         {
           role: "system",
           content: `
 Current time: ${now.toISOString()}
 
-Convert to REAL datetime.
+Convert to REAL timestamp.
 
 Return JSON ONLY:
 
@@ -156,9 +138,9 @@ Return JSON ONLY:
  "timestamp": number
 }
 
-Example:
-"in 5 min" → now+5min timestamp
-"tomorrow 9am" → timestamp
+Examples:
+"in 5 min"
+"tomorrow 9am"
 `
         },
         {
@@ -179,8 +161,6 @@ Example:
   }
 }
 
-
-
 // ================= CHAT =================
 
 app.post("/chat", async (req, res) => {
@@ -193,34 +173,25 @@ app.post("/chat", async (req, res) => {
       return res.json({ reply: "Bro 😭 say something 💙" });
     }
 
-
     let db = loadDB();
 
-
-    // Create user
     if (!db[fcmToken]) {
-
       db[fcmToken] = {
-
         profile: {
           name: null,
           mood: "neutral",
           stress: 5,
           confidence: 5
         },
-
         events: [],
         history: [],
         waitingFor: null
       };
     }
 
-
     const user = db[fcmToken];
 
-
-
-    // ================= SAVE MSG =================
+    // ================= SAVE USER MSG =================
 
     user.history.push({
       role: "user",
@@ -229,38 +200,19 @@ app.post("/chat", async (req, res) => {
 
     if (user.history.length > 12) user.history.shift();
 
-
-
     // ================= MOOD =================
 
     const mood = detectMood(message);
 
     if (mood) {
-
       user.profile.mood = mood;
-
-      if (mood === "low" || mood === "anxious") {
-        user.profile.stress++;
-        user.profile.confidence--;
-      }
-
-      if (mood === "high") {
-        user.profile.confidence++;
-      }
-
-      user.profile.stress = Math.min(10, Math.max(1, user.profile.stress));
-      user.profile.confidence = Math.min(10, Math.max(1, user.profile.confidence));
     }
-
-
 
     // ================= NAME =================
 
     const name = detectName(message);
 
     if (name) user.profile.name = name;
-
-
 
     // ================= WAITING =================
 
@@ -271,14 +223,8 @@ app.post("/chat", async (req, res) => {
       const event = {
         title: user.waitingFor.title,
         description: user.waitingFor.description,
-
-        // ✅ REAL TIME
         timestamp: parsed.timestamp,
-
-        notified: {
-          five: false,
-          after: false
-        }
+        notified: { five: false, after: false }
       };
 
       user.events.push(event);
@@ -288,11 +234,9 @@ app.post("/chat", async (req, res) => {
       saveDB(db);
 
       return res.json({
-        reply: `Saved 😤🔥 ${event.title} 💙`
+        reply: `Saved 😤🔥 ${event.title} on ${formatTime(event.timestamp)} 💙`
       });
     }
-
-
 
     // ================= EVENT DETECT =================
 
@@ -304,22 +248,19 @@ app.post("/chat", async (req, res) => {
 
       if (parsed.timestamp) {
 
-        user.events.push({
+        const event = {
           title: aiEvent.title,
           description: aiEvent.description,
-
           timestamp: parsed.timestamp,
+          notified: { five: false, after: false }
+        };
 
-          notified: {
-            five: false,
-            after: false
-          }
-        });
+        user.events.push(event);
 
         saveDB(db);
 
         return res.json({
-          reply: `Got you 😤🔥 ${aiEvent.title} 💙`
+          reply: `Got you 😤🔥 ${event.title} on ${formatTime(event.timestamp)} 💙`
         });
       }
 
@@ -332,8 +273,6 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-
-
     // ================= MAIN AI =================
 
     let reply = "Bro 😭 error";
@@ -341,15 +280,10 @@ app.post("/chat", async (req, res) => {
     try {
 
       const chatAI = await groq.chat.completions.create({
-
         model: "llama-3.1-8b-instant",
-
         temperature: 0.9,
-
         max_tokens: 200,
-
         messages: [
-
           {
             role: "system",
             content: `
@@ -363,7 +297,6 @@ Remember past chats.
 Use emojis.
 `
           },
-
           ...user.history
         ]
       });
@@ -371,13 +304,8 @@ Use emojis.
       reply = chatAI.choices[0].message.content;
 
     } catch {
-
       reply = "Bro 😭 brain lag 💙";
     }
-
-
-
-    // ================= SAVE BOT =================
 
     user.history.push({
       role: "assistant",
@@ -386,9 +314,7 @@ Use emojis.
 
     saveDB(db);
 
-
     res.json({ reply });
-
 
   } catch (err) {
 
@@ -400,18 +326,15 @@ Use emojis.
   }
 });
 
-
-
 // ================= REMINDER SYSTEM =================
 
-cron.schedule("* * * * *", async () => {
+// Every 30 sec (better accuracy)
+cron.schedule("*/30 * * * * *", async () => {
 
   try {
 
     const db = loadDB();
-
     const now = Date.now();
-
 
     for (const token in db) {
 
@@ -421,11 +344,10 @@ cron.schedule("* * * * *", async () => {
 
         const diff = e.timestamp - now;
 
-
-        // 🔥 5 MIN BEFORE
+        // 🔥 5 MIN BEFORE (±60 sec buffer)
         if (
           diff <= 5 * 60 * 1000 &&
-          diff > 4 * 60 * 1000 &&
+          diff > 3.5 * 60 * 1000 &&
           !e.notified.five
         ) {
 
@@ -439,7 +361,6 @@ cron.schedule("* * * * *", async () => {
 
           e.notified.five = true;
         }
-
 
         // 💙 AFTER (5 min later)
         if (
@@ -457,20 +378,16 @@ cron.schedule("* * * * *", async () => {
 
           e.notified.after = true;
         }
-
       }
     }
 
     saveDB(db);
 
   } catch (err) {
-
     console.log("Reminder error:", err);
   }
 
 });
-
-
 
 // ================= START =================
 
