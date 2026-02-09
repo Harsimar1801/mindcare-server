@@ -9,6 +9,7 @@ const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
 
 
+
 // ================= FIREBASE =================
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -23,6 +24,7 @@ admin.initializeApp({
 });
 
 
+
 // ================= APP =================
 
 const app = express();
@@ -30,6 +32,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+
 
 
 // ================= GROQ =================
@@ -42,6 +45,7 @@ if (!process.env.GROQ_API_KEY) {
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
+
 
 
 // ================= FILE DB =================
@@ -58,6 +62,7 @@ function saveDB(data) {
 }
 
 
+
 // ================= HELPERS =================
 
 function formatTime(ts) {
@@ -69,6 +74,7 @@ function formatTime(ts) {
     month: "short"
   });
 }
+
 
 
 // ================= MOOD =================
@@ -85,6 +91,7 @@ function detectMood(text) {
 
   return null;
 }
+
 
 
 // ================= MOOD REPLIES =================
@@ -117,9 +124,12 @@ const moodReplies = {
   ]
 };
 
+
+
 function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
+
 
 
 // ================= TIME PARSER =================
@@ -136,25 +146,31 @@ function parseDate(text) {
 }
 
 
+
 // ================= CHAT =================
 
 app.post("/chat", async (req, res) => {
 
   try {
 
-    const { message, fcmToken } = req.body;
+    const { message, fcmToken, language } = req.body; // ✅ GET LANGUAGE
 
     if (!message || !fcmToken) {
       return res.json({ reply: "Bhai kuch likh toh sahi 💙" });
     }
 
+
     let db = loadDB();
 
 
+    // Create user
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
-        profile: { mood: null },
+        profile: {
+          mood: null,
+          language: "hinglish" // ✅ DEFAULT
+        },
         history: [],
         events: []
       };
@@ -162,6 +178,13 @@ app.post("/chat", async (req, res) => {
 
 
     const user = db[fcmToken];
+
+
+    // Save language
+    if (language) {
+      user.profile.language = language;
+    }
+
 
 
     // Save user msg
@@ -173,6 +196,7 @@ app.post("/chat", async (req, res) => {
     if (user.history.length > 20) user.history.shift();
 
 
+
     // ================= MOOD =================
 
     const mood = detectMood(message);
@@ -180,7 +204,6 @@ app.post("/chat", async (req, res) => {
     if (mood) {
 
       user.profile.mood = mood;
-      saveDB(db);
 
       const reply = randomFrom(moodReplies[mood]);
 
@@ -193,6 +216,7 @@ app.post("/chat", async (req, res) => {
 
       return res.json({ reply, mood });
     }
+
 
 
     // ================= EVENT =================
@@ -223,6 +247,7 @@ app.post("/chat", async (req, res) => {
     }
 
 
+
     // ================= AI =================
 
     const ai = await groq.chat.completions.create({
@@ -236,8 +261,23 @@ app.post("/chat", async (req, res) => {
           role: "system",
           content: `
 You are MindCare.
-Be caring, mature, natural.
-Use light Hinglish.
+
+User language: ${user.profile.language}
+
+Rules:
+
+If language is "english":
+→ Reply ONLY in English.
+
+If language is "hinglish":
+→ Use Hindi + English mix.
+
+If language is "hindi":
+→ Reply ONLY in Hindi (Devanagari).
+
+Be caring.
+Be mature.
+Be natural.
 No cringe.
 Short replies.
 Ask max 1 question.
@@ -277,7 +317,7 @@ Ask max 1 question.
 
 
 
-// ================= GET HISTORY API =================
+// ================= HISTORY API =================
 
 app.get("/history/:token", (req, res) => {
 
@@ -302,7 +342,7 @@ app.get("/history/:token", (req, res) => {
 
 
 
-// ================= REMINDER SYSTEM =================
+// ================= REMINDER =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -324,7 +364,7 @@ cron.schedule("*/30 * * * * *", async () => {
         const diff = e.time - now;
 
 
-        // ===== BEFORE =====
+        // BEFORE
         if (
           diff <= 5 * 60000 &&
           diff > 2 * 60000 &&
@@ -348,9 +388,7 @@ cron.schedule("*/30 * * * * *", async () => {
               body: msg
             },
 
-            data: {
-              message: msg
-            }
+            data: { message: msg }
 
           });
 
@@ -358,7 +396,7 @@ cron.schedule("*/30 * * * * *", async () => {
         }
 
 
-        // ===== AFTER =====
+        // AFTER
         if (
           diff <= -2 * 60000 &&
           !e.notified.after
@@ -381,9 +419,7 @@ cron.schedule("*/30 * * * * *", async () => {
               body: msg
             },
 
-            data: {
-              message: msg
-            }
+            data: { message: msg }
 
           });
 
