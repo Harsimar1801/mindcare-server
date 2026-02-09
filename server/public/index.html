@@ -1,48 +1,41 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
 
-<meta name="viewport"
-content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta charset="UTF-8" />
 
-<link rel="manifest" href="/manifest.json">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1">
 
-<meta name="theme-color" content="#121212">
+  <title>MindCare</title>
 
+  <link rel="stylesheet" href="style.css">
 
-    <title>MindCare</title>
-    <link rel="stylesheet" href="style.css">
 </head>
 
-<body>
+<body class="home-body">
 
-  <div class="app">
+  <div class="home">
 
-    <div class="header">
-      <h1> MindCare</h1>
-    </div>
+    <h1>🧠 MindCare</h1>
 
-    <div id="chat"></div>
+    <p class="tagline">
+      Your AI Mental Wellness Companion 💙
+    </p>
 
-    <div class="input-box">
-      <input
-        type="text"
-        id="msg"
-        placeholder="Type how you're feeling..."
-        autocomplete="off"
-      />
-<button class="send-btn" onclick="send()" aria-label="Send message">
-  ➤
-</button>
+    <button
+      class="start-btn"
+      onclick="location.href='chat.html'">
+      Start Chat 🚀
+    </button>
 
-</button>
-    </div>
+    <button
+      class="secondary-btn"
+      onclick="alert('Built by Harsimar 💙')">
+      About
+    </button>
 
   </div>
 
-  <script src="script.js"></script>
-
 </body>
-
 </html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#121212">
+
+  <title>MindCare Chat</title>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <div class="app">
+
+    <!-- Header -->
+    <div class="header">
+      <h1>🧠 MindCare</h1>
+    </div>
+
+    <!-- Chat Area -->
+    <div id="chat"></div>
+
+    <!-- Input -->
+    <div class="input-box">
+
+      <input
+        type="text"
+        id="msg"
+        placeholder="Type how you're feeling..."
+        autocomplete="off"
+      />
+
+      <button class="send-btn" onclick="send()" aria-label="Send">
+        ➤
+      </button>
+
+    </div>
+
+  </div>
+
+  <script src="script.js"></script>
+
+</body>
+</html>
