@@ -446,7 +446,7 @@ cron.schedule("*/30 * * * * *", async () => {
           !e.notified.five
         ) {
 
-        const msg = `5 min left for ${e.title} 😤💙`;
+     const msg = `5 min left for ${e.title} 😤💙`;
 
 await admin.messaging().send({
 
@@ -458,7 +458,6 @@ await admin.messaging().send({
   },
 
   data: {
-    openChat: "true",
     message: msg
   }
 
@@ -474,7 +473,7 @@ await admin.messaging().send({
           !e.notified.after
         ) {
 
-          const msg = `Kaisa gaya ${e.title}? 🤗`;
+         const msg = `Kaisa gaya ${e.title}? 🤗`;
 
 await admin.messaging().send({
 
@@ -485,9 +484,7 @@ await admin.messaging().send({
     body: msg
   },
 
-  // 👇 IMPORTANT
   data: {
-    openChat: "true",
     message: msg
   }
 
