@@ -73,11 +73,42 @@ function detectMood(text) {
 
   const t = text.toLowerCase();
 
-  if (t.includes("happy") || t.includes("excited")) return "happy";
-  if (t.includes("sad") || t.includes("cry") || t.includes("down")) return "sad";
-  if (t.includes("stress") || t.includes("anxious")) return "anxious";
-  if (t.includes("tired") || t.includes("sleep")) return "tired";
-  if (t.includes("alone") || t.includes("lonely")) return "lonely";
+  if (
+    t.includes("happy") ||
+    t.includes("good") ||
+    t.includes("great") ||
+    t.includes("awesome") ||
+    t.includes("excited") ||
+    t.includes("khush") ||
+    t.includes("mast")
+  ) return "happy";
+
+  if (
+    t.includes("sad") ||
+    t.includes("cry") ||
+    t.includes("down") ||
+    t.includes("low") ||
+    t.includes("depressed")
+  ) return "sad";
+
+  if (
+    t.includes("stress") ||
+    t.includes("anxious") ||
+    t.includes("panic") ||
+    t.includes("tension")
+  ) return "anxious";
+
+  if (
+    t.includes("tired") ||
+    t.includes("sleep") ||
+    t.includes("exhaust")
+  ) return "tired";
+
+  if (
+    t.includes("alone") ||
+    t.includes("lonely") ||
+    t.includes("akela")
+  ) return "lonely";
 
   return null;
 }

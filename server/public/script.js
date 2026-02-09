@@ -71,7 +71,16 @@ function addMessage(text, type) {
 
 loadChat();
 
+// ================= SHOW MOOD WELCOME =================
 
+if (chat.children.length === 0) {
+
+  const mood = localStorage.getItem("userMood") || "neutral";
+
+  const msg = getMoodWelcome(mood);
+
+  addMessage("MindCare: " + msg, "bot");
+}
 
 // ================= MOOD WELCOME =================
 
@@ -145,7 +154,23 @@ async function send() {
 
 
     const data = await res.json();
+// ================= APPLY MOOD FROM SERVER =================
 
+if (data.mood) {
+
+  console.log("Mood from server:", data.mood);
+
+  // Save mood
+  localStorage.setItem("userMood", data.mood);
+
+  // Apply theme instantly
+  if (moodThemes[data.mood]) {
+    applyTheme(moodThemes[data.mood]);
+  }
+
+  // Clear old welcome so it refreshes
+  localStorage.removeItem("mindcare_chat");
+}
     chat.removeChild(typing);
 
     addMessage("MindCare: " + data.reply, "bot");
