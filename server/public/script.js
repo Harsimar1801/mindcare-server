@@ -106,7 +106,27 @@ function addMessage(text, type) {
 
 // ================= LOAD OLD CHAT =================
 
+// ================= LOAD OLD CHAT =================
+
 loadChat();
+
+
+// ================= NOTIFICATION MESSAGE =================
+
+const params = new URLSearchParams(window.location.search);
+const notifMsg = params.get("msg");
+
+if (notifMsg) {
+
+  const clean = decodeURIComponent(notifMsg);
+
+  addMessage("MindCare: " + clean, "bot");
+
+  saveChat();
+
+  // Remove from URL (clean look)
+  window.history.replaceState({}, document.title, "/chat.html");
+}
 
 
 // ================= MOOD FIRST MESSAGE =================

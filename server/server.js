@@ -446,15 +446,23 @@ cron.schedule("*/30 * * * * *", async () => {
           !e.notified.five
         ) {
 
-          await admin.messaging().send({
+        const msg = `5 min left for ${e.title} 😤💙`;
 
-            token,
+await admin.messaging().send({
 
-            notification: {
-              title: "🔥 You Got This",
-              body: `5 min left for ${e.title} 😤💙`
-            }
-          });
+  token,
+
+  notification: {
+    title: "🔥 You Got This",
+    body: msg
+  },
+
+  data: {
+    openChat: "true",
+    message: msg
+  }
+
+});
 
           e.notified.five = true;
         }
@@ -466,15 +474,24 @@ cron.schedule("*/30 * * * * *", async () => {
           !e.notified.after
         ) {
 
-          await admin.messaging().send({
+          const msg = `Kaisa gaya ${e.title}? 🤗`;
 
-            token,
+await admin.messaging().send({
 
-            notification: {
-              title: "💙 Proud of You",
-              body: `Kaisa gaya ${e.title}? 🤗`
-            }
-          });
+  token,
+
+  notification: {
+    title: "💙 Proud of You",
+    body: msg
+  },
+
+  // 👇 IMPORTANT
+  data: {
+    openChat: "true",
+    message: msg
+  }
+
+});
 
           e.notified.after = true;
         }
