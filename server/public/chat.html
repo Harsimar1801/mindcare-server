@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
 
   <meta name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1">
+        content="width=device-width, initial-scale=1, maximum-scale=1">
 
   <title>MindCare Chat</title>
 
@@ -17,41 +17,29 @@
 
   <div class="app">
 
-    <!-- Header -->
-   <!-- Header / Navbar -->
-<div class="navbar">
+    <!-- HEADER -->
+    <div class="header">
 
-  <button class="back-btn" onclick="location.href='index.html'">
-    ←
-  </button>
+      <div class="header-brand">
+        <img src="logo.png" alt="MindCare Logo" class="header-logo">
+        <h1 id="botName">MindCare</h1>
+      </div>
 
-<div class="nav-center">
+      <!-- THEME PICKER -->
+      <div class="palette">
+        <label class="color-wheel">
+          <input type="color" id="themePicker" aria-label="Choose theme color">
+        </label>
+      </div>
 
-  <div class="brand">
+    </div>
 
-    <img src="logo.png" class="app-logo" />
 
-    <input
-      id="botName"
-      class="bot-name"
-      type="text"
-      value="MindCare"
-      maxlength="15"
-      spellcheck="false"
-    />
-
-  </div>
-
-  <span class="status">● Online</span>
-
-</div>
-
-</div>
-
-    <!-- Chat -->
+    <!-- CHAT -->
     <div id="chat"></div>
 
-    <!-- Input -->
+
+    <!-- INPUT -->
     <div class="input-box">
 
       <input
@@ -61,7 +49,10 @@
         autocomplete="off"
       />
 
-      <button class="send-btn" onclick="send()">
+      <button
+        class="send-btn"
+        onclick="send()"
+        aria-label="Send message">
         ➤
       </button>
 

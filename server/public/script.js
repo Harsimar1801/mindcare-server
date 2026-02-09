@@ -1,30 +1,9 @@
-// ================= BOT NAME SAVE =================
-
-const botNameInput = document.getElementById("botName");
-
-// Load saved name
-const savedName = localStorage.getItem("botName");
-
-if (savedName) {
-  botNameInput.value = savedName;
-}
-
-// Save on change
-botNameInput.addEventListener("change", () => {
-
-  const name = botNameInput.value.trim();
-
-  if (name.length > 0) {
-    localStorage.setItem("botName", name);
-  }
-});
 // ================= TOKEN =================
 
 function setFCMToken(token) {
   console.log("Saved Token:", token);
   localStorage.setItem("fcmToken", token);
 }
-
 
 
 // ================= SERVICE WORKER =================
@@ -35,7 +14,6 @@ if ("serviceWorker" in navigator) {
     .then(() => console.log("SW Ready"))
     .catch(err => console.log("SW Error:", err));
 }
-
 
 
 // ================= PERMISSION =================
@@ -50,7 +28,6 @@ async function askPermission() {
 askPermission();
 
 
-
 // ================= ANDROID BRIDGE =================
 
 if (window.Android && window.Android.getFCMToken) {
@@ -58,28 +35,49 @@ if (window.Android && window.Android.getFCMToken) {
 }
 
 
+// ================= DEMO NOTIFICATION =================
+
+function sendDemoNotification() {
+  if (Notification.permission === "granted") {
+    new Notification("🧠 MindCare Check-in", {
+      body: "Hey Harsimar 💙 How are you feeling today?",
+      icon: "/icon.png"
+    });
+  }
+}
+
+setTimeout(sendDemoNotification, 5000);
+setInterval(sendDemoNotification, 24 * 60 * 60 * 1000);
+
 
 // ================= UI =================
 
 const chat = document.getElementById("chat");
 const input = document.getElementById("msg");
+const sendBtn = document.querySelector(".send-btn");
+const themePicker = document.getElementById("themePicker");
+const app = document.querySelector(".app");
+const header = document.querySelector(".header");
+
+
+// ================= ADD MESSAGE =================
 
 function addMessage(text, type) {
 
   const div = document.createElement("div");
+
   div.className = type;
   div.innerText = text;
 
   chat.appendChild(div);
+
   chat.scrollTop = chat.scrollHeight;
 }
-
 
 
 // ================= WELCOME =================
 
 addMessage("Yo Harsimar 😄💙 I'm here bro.", "bot");
-
 
 
 // ================= SEND =================
@@ -95,7 +93,7 @@ async function send() {
   input.value = "";
 
 
-  // Typing indicator
+  // Typing
   const typing = document.createElement("div");
   typing.className = "bot";
   typing.innerText = "MindCare is typing...";
@@ -141,9 +139,66 @@ async function send() {
 }
 
 
-
 // ================= ENTER =================
 
 input.addEventListener("keydown", e => {
   if (e.key === "Enter") send();
 });
+
+
+// =====================================
+// THEME + SEND BUTTON CONTRAST LOGIC
+// =====================================
+
+
+// Adjust brightness helper
+function adjustColor(hex, amt) {
+
+  let num = parseInt(hex.replace("#", ""), 16);
+
+  let r = Math.min(255, Math.max(0, (num >> 16) + amt));
+  let g = Math.min(255, Math.max(0, ((num >> 8) & 255) + amt));
+  let b = Math.min(255, Math.max(0, (num & 255) + amt));
+
+  return { r, g, b };
+}
+
+
+// Brightness (for contrast)
+function getBrightness({ r, g, b }) {
+  return (r * 299 + g * 587 + b * 114) / 1000;
+}
+
+
+// Theme picker
+if (themePicker) {
+
+  themePicker.addEventListener("input", () => {
+
+    const base = themePicker.value;
+
+
+    // App background (lighter)
+    const main = adjustColor(base, 40);
+    app.style.background = `rgb(${main.r},${main.g},${main.b})`;
+
+
+    // Header (darker)
+    const head = adjustColor(base, -25);
+    header.style.background = `rgb(${head.r},${head.g},${head.b})`;
+
+
+    // Button
+    const btn = adjustColor(base, -10);
+    sendBtn.style.background = `rgb(${btn.r},${btn.g},${btn.b})`;
+
+
+    // Auto arrow contrast
+    const brightness = getBrightness(btn);
+
+    sendBtn.style.color =
+      brightness < 140 ? "#ffffff" : "#1a1a1a";
+
+  });
+
+}
