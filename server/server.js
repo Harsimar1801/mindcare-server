@@ -55,14 +55,6 @@ function saveDB(data) {
 
 // ================= HELPERS =================
 
-// Event detector
-function detectEvent(text) {
-
-  const words = ["exam", "test", "quiz", "interview", "presentation"];
-
-  return words.find(w => text.toLowerCase().includes(w));
-}
-
 
 // Mood detector
 function detectMood(text) {
@@ -98,11 +90,11 @@ function detectName(text) {
 
 // ================= DATE PARSER =================
 
-async function parseDate(text) {
+async function detectEventAI(text) {
 
   try {
 
-    const now = new Date();
+    const now = new Date().toISOString();
 
     const res = await groq.chat.completions.create({
 
@@ -114,23 +106,29 @@ async function parseDate(text) {
         {
           role: "system",
           content: `
-You are a time converter.
+You are an event analyzer.
 
 Current time:
-${now.toISOString()}
+${now}
 
-Convert user message into JSON:
+Decide if user mentions a future important event.
+
+If YES, return JSON:
 
 {
- "date": "YYYY-MM-DD",
- "time": "HH:MM"
+  "hasEvent": true,
+  "title": "short event name",
+  "description": "what is happening",
+  "timeText": "time mentioned or null"
 }
 
-Rules:
-- Understand "in 5 min", "tomorrow", "tonight", "next week"
-- Calculate real date & time
-- Always return valid JSON
-- No explanation
+If NO, return:
+
+{
+  "hasEvent": false
+}
+
+Only JSON.
 `
         },
         {
@@ -140,24 +138,13 @@ Rules:
       ]
     });
 
-    const raw = res.choices[0].message.content;
+    return JSON.parse(res.choices[0].message.content);
 
-    return JSON.parse(raw);
+  } catch (e) {
 
-  } catch (err) {
-
-    console.log("Date parse failed:", err);
-
-    // fallback → 1 hour later
-    const d = new Date(Date.now() + 60 * 60 * 1000);
-
-    return {
-      date: d.toISOString().slice(0,10),
-      time: d.toTimeString().slice(0,5)
-    };
+    return { hasEvent: false };
   }
 }
-
 
 // ================= CHAT =================
 
@@ -200,7 +187,23 @@ app.post("/chat", async (req, res) => {
 
 
   // ================= SAVE USER MESSAGE =================
+// ================= AI EVENT DETECT =================
 
+const aiEvent = await detectEventAI(message);
+
+if (aiEvent.hasEvent && !user.waitingFor) {
+
+  user.waitingFor = {
+    title: aiEvent.title,
+    description: aiEvent.description
+  };
+
+  saveDB(db);
+
+  return res.json({
+    reply: `Ohhh 😭💙 when exactly is "${aiEvent.title}"? Tell me date/time bro 🔥`
+  });
+}
   user.history.push({
     role: "user",
     content: message
@@ -275,23 +278,7 @@ app.post("/chat", async (req, res) => {
 
   // ================= DETECT NEW EVENT =================
 
-  const detected = detectEvent(message);
 
-  if (detected) {
-
-    const exists = user.events.find(e => e.type === detected);
-
-    if (!exists) {
-
-      user.waitingFor = detected;
-
-      saveDB(db);
-
-      return res.json({
-        reply: `Oh damn 😭 when is your ${detected}? Date + time bro 💙`
-      });
-    }
-  }
 
 
 
