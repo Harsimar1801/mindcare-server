@@ -102,6 +102,8 @@ async function parseDate(text) {
 
   try {
 
+    const now = new Date();
+
     const res = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
@@ -112,14 +114,23 @@ async function parseDate(text) {
         {
           role: "system",
           content: `
-Return ONLY JSON:
+You are a time converter.
+
+Current time:
+${now.toISOString()}
+
+Convert user message into JSON:
 
 {
- "date":"YYYY-MM-DD",
- "time":"HH:MM" or null
+ "date": "YYYY-MM-DD",
+ "time": "HH:MM"
 }
 
-No explanation.
+Rules:
+- Understand "in 5 min", "tomorrow", "tonight", "next week"
+- Calculate real date & time
+- Always return valid JSON
+- No explanation
 `
         },
         {
@@ -129,13 +140,20 @@ No explanation.
       ]
     });
 
-    return JSON.parse(res.choices[0].message.content);
+    const raw = res.choices[0].message.content;
 
-  } catch {
+    return JSON.parse(raw);
+
+  } catch (err) {
+
+    console.log("Date parse failed:", err);
+
+    // fallback → 1 hour later
+    const d = new Date(Date.now() + 60 * 60 * 1000);
 
     return {
-      date: new Date().toISOString().slice(0,10),
-      time: null
+      date: d.toISOString().slice(0,10),
+      time: d.toTimeString().slice(0,5)
     };
   }
 }
@@ -379,69 +397,81 @@ app.post("/push-now", async (req, res) => {
 // ================= SMART REMINDERS =================
 
 cron.schedule("* * * * *", async () => {
+
   const db = loadDB();
   const now = new Date();
+
+  console.log("⏰ Checking reminders", now.toLocaleString());
 
   for (const token in db) {
 
     for (const e of db[token].events) {
 
-      const examTime = new Date(`${e.date} ${e.time || "09:00"}`);
+      if (!e.date || !e.time) continue;
 
-      const diff = examTime - now;
+      const eventTime = new Date(`${e.date}T${e.time}`);
+      const diff = eventTime - now; // ms
 
-      // 1 Day before
-      if (diff > 23*60*60*1000 && diff < 25*60*60*1000 && !e.dayBefore) {
-
-        await admin.messaging().send({
-          token,
-          notification: {
-            title: "🧠 MindCare",
-            body: "Kal exam hai bro 😤 thoda revise kar le 💙"
-          }
-        });
-
-        e.dayBefore = true;
-      }
-// 5 Minutes before
-if (diff > 4*60*1000 && diff < 6*60*1000 && !e.fiveMin) {
-
-  await admin.messaging().send({
-    token,
-    notification: {
-      title: "⚡ Last Push Bro",
-      body: "5 min left 😤 Deep breath, you got this 💙🔥"
-    }
-  });
-
-  e.fiveMin = true;
-}
-      // 1 Hour before
-      if (diff > 59*60*1000 && diff < 61*60*1000 && !e.hourBefore) {
-
-        await admin.messaging().send({
-          token,
-          notification: {
-            title: "🔥 All The Best",
-            body: "You got this bro 💙 Go kill it 😤"
-          }
-        });
-
-        e.hourBefore = true;
+      // Initialize flags
+      if (!e.notified) {
+        e.notified = {
+          oneHour: false,
+          fiveMin: false,
+          after: false
+        };
       }
 
-      // After exam
-      if (diff < -60*60*1000 && !e.after) {
+      // 🔔 1 HOUR BEFORE
+      if (
+        diff <= 60 * 60 * 1000 &&
+        diff > 59 * 60 * 1000 &&
+        !e.notified.oneHour
+      ) {
 
         await admin.messaging().send({
           token,
           notification: {
-            title: "🧠 MindCare",
-            body: "How was your exam? Proud of you 💙😄"
+            title: "⏰ Get Ready Bro",
+            body: `1 hour left for your ${e.type} 💪 Revise & relax 😤`
           }
         });
 
-        e.after = true;
+        e.notified.oneHour = true;
+      }
+
+      // ⚡ 5 MIN BEFORE
+      if (
+        diff <= 5 * 60 * 1000 &&
+        diff > 4 * 60 * 1000 &&
+        !e.notified.fiveMin
+      ) {
+
+        await admin.messaging().send({
+          token,
+          notification: {
+            title: "🔥 You Got This",
+            body: `5 min left 😤 Deep breath, go kill it 💙`
+          }
+        });
+
+        e.notified.fiveMin = true;
+      }
+
+      // 💙 AFTER EXAM
+      if (
+        diff < -5 * 60 * 1000 &&
+        !e.notified.after
+      ) {
+
+        await admin.messaging().send({
+          token,
+          notification: {
+            title: "💙 Proud of You",
+            body: `How was your ${e.type}? I'm here 🤗`
+          }
+        });
+
+        e.notified.after = true;
       }
 
     }
