@@ -48,6 +48,7 @@ const inputBox = document.querySelector(".input-box");
 
 // ================= CHAT STORAGE =================
 
+
 // Save chat
 function saveChat() {
 
@@ -87,6 +88,7 @@ function loadChat() {
 }
 
 
+
 // ================= ADD MESSAGE =================
 
 function addMessage(text, type) {
@@ -104,43 +106,25 @@ function addMessage(text, type) {
 }
 
 
-// ================= LOAD OLD CHAT =================
 
-// ================= LOAD OLD CHAT =================
+// ================= LOAD CHAT FIRST =================
 
 loadChat();
 
 
-// ================= NOTIFICATION MESSAGE =================
 
-const params = new URLSearchParams(window.location.search);
-const notifMsg = params.get("msg");
-
-if (notifMsg) {
-
-  const clean = decodeURIComponent(notifMsg);
-
-  addMessage("MindCare: " + clean, "bot");
-
-  saveChat();
-
-  // Remove from URL (clean look)
-  window.history.replaceState({}, document.title, "/chat.html");
-}
-
-
-// ================= MOOD FIRST MESSAGE =================
+// ================= MOOD WELCOME =================
 
 function getMoodWelcome(mood) {
 
   const map = {
     happy: "😄 You sound happy today bro! What made you smile? 💙",
     sad: "🥺 You seem low today… want to talk about it?",
-    anxious: "😰 Feeling anxious? I'm here with you. What’s going on?",
-    calm: "😌 You seem calm today. What’s on your mind?",
+    anxious: "😰 Feeling anxious? I'm here. Kya hua?",
+    calm: "😌 You seem calm today. What's on your mind?",
     tired: "😴 You look tired bro… rough day?",
-    lonely: "💙 Feeling alone? You’re not alone here.",
-    excited: "🔥 Damn you sound excited! Tell me more!",
+    lonely: "💙 Feeling alone? You're not alone here.",
+    excited: "🔥 Damn you sound excited! Bata na!",
     neutral: "Hey bro 💙 How are you feeling today?"
   };
 
@@ -148,11 +132,29 @@ function getMoodWelcome(mood) {
 }
 
 
-// Show first message if empty
+
+// ================= INITIAL MESSAGE =================
+
 function showInitialMessage() {
 
+  // If chat already exists → no welcome
   if (chat.children.length > 0) return;
 
+
+  // Check notification first
+  const notif = localStorage.getItem("notifMessage");
+
+  if (notif) {
+
+    addMessage("MindCare: " + notif, "bot");
+
+    localStorage.removeItem("notifMessage");
+
+    return;
+  }
+
+
+  // Mood welcome
   const mood = localStorage.getItem("userMood") || "neutral";
 
   const msg = getMoodWelcome(mood);
@@ -163,18 +165,26 @@ function showInitialMessage() {
 showInitialMessage();
 
 
-// ================= CONTINUE LAST AI =================
 
-const lastAI = localStorage.getItem("lastAIReply");
+// ================= URL NOTIFICATION =================
 
-if (chat.children.length > 0 && lastAI) {
+(function(){
 
-  setTimeout(() => {
+  const params = new URLSearchParams(window.location.search);
+  const notifMsg = params.get("msg");
 
-    addMessage("MindCare: " + lastAI, "bot");
+  if (!notifMsg) return;
 
-  }, 500);
-}
+  const clean = decodeURIComponent(notifMsg);
+
+  localStorage.setItem("notifMessage", clean);
+
+  window.history.replaceState({}, document.title, "/chat.html");
+
+  location.reload();
+
+})();
+
 
 
 // ================= SEND =================
@@ -225,9 +235,6 @@ async function send() {
 
     addMessage("MindCare: " + data.reply, "bot");
 
-    // Save last AI
-    localStorage.setItem("lastAIReply", data.reply);
-
   }
 
   catch (err) {
@@ -241,11 +248,13 @@ async function send() {
 }
 
 
+
 // ================= ENTER =================
 
 input.addEventListener("keydown", e => {
   if (e.key === "Enter") send();
 });
+
 
 
 // =====================================
@@ -285,7 +294,7 @@ function clamp(v) {
 }
 
 
-// Make color soft
+// Soften
 function soften({ r, g, b }) {
 
   return {
@@ -301,6 +310,7 @@ function brightness({ r, g, b }) {
 
   return (r * 299 + g * 587 + b * 114) / 1000;
 }
+
 
 
 // APPLY THEME
@@ -333,12 +343,12 @@ function applyTheme(baseHex) {
     `rgba(${soft.r},${soft.g},${soft.b},0.25)`;
 
 
-  // Send button
+  // Button
   sendBtn.style.background =
     `rgb(${soft.r - 10},${soft.g - 10},${soft.b - 10})`;
 
 
-  // Text colors
+  // Text
   const textColor = darkMode ? "#ffffff" : "#121212";
 
   app.style.color = textColor;
@@ -353,9 +363,8 @@ function applyTheme(baseHex) {
 
 
 
-// ================= LOAD SAVED THEME =================
+// ================= LOAD THEME =================
 
-// From picker
 const savedColor = localStorage.getItem("themeColor");
 
 if (savedColor) {
@@ -363,7 +372,6 @@ if (savedColor) {
 }
 
 
-// From mood
 const savedMood = localStorage.getItem("userMood");
 
 if (!savedColor && savedMood && moodThemes[savedMood]) {
@@ -385,18 +393,3 @@ if (themePicker) {
     localStorage.setItem("themeColor", color);
   });
 }
-
-
-// ================= NOTIFICATION AUTO MESSAGE =================
-
-window.addEventListener("load", () => {
-
-  const notifMsg = localStorage.getItem("notifMessage");
-
-  if (notifMsg) {
-
-    addMessage("MindCare: " + notifMsg, "bot");
-
-    localStorage.removeItem("notifMessage");
-  }
-});

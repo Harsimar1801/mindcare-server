@@ -74,17 +74,10 @@ function detectMood(text) {
   const t = text.toLowerCase();
 
   if (t.includes("happy") || t.includes("excited")) return "happy";
-
   if (t.includes("sad") || t.includes("cry") || t.includes("down")) return "sad";
-
-  if (t.includes("stress") || t.includes("anxious") || t.includes("panic"))
-    return "anxious";
-
-  if (t.includes("tired") || t.includes("burnout") || t.includes("sleepy"))
-    return "tired";
-
-  if (t.includes("lonely") || t.includes("alone"))
-    return "lonely";
+  if (t.includes("stress") || t.includes("anxious")) return "anxious";
+  if (t.includes("tired") || t.includes("sleep")) return "tired";
+  if (t.includes("alone") || t.includes("lonely")) return "lonely";
 
   return null;
 }
@@ -95,28 +88,28 @@ function detectMood(text) {
 const moodReplies = {
 
   happy: [
-    "Ayy 😄 love this vibe! What made you happy today bro?",
-    "Niceee 💙 why you smiling like that? Bata na 😤"
+    "Ayy 😄 nice! Bata na, kya cheez ne happy kiya? 💙",
+    "Bro 😤🔥 kya scene hai? Why so happy?"
   ],
 
   sad: [
-    "Bro 💙 kya hua? I’m here.",
-    "Hey 😔 wanna talk about it?"
+    "Bro 🫂 kya hua? Bol na.",
+    "Hey 😔 main hoon na, kya hua?"
   ],
 
   anxious: [
-    "Hey relax 😤💙 what’s stressing you?",
-    "Breathe first bro 🤍 tell me."
+    "Relax 😤💙 kya tension chal rahi?",
+    "Breathe bro 🤍 kya hua?"
   ],
 
   tired: [
-    "Oof 😴 long day? What drained you?",
-    "Bro you sound exhausted 💙 kya scene?"
+    "Oof 😴 thak gaya kya? Rest liya?",
+    "Bro exhausted lag raha 💙 kya hua?"
   ],
 
   lonely: [
-    "Hey 🤍 you’re not alone. Talk to me.",
-    "Main hoon na 💙 kya hua?"
+    "Hey 🤍 tu akela nahi hai bro.",
+    "Main hoon na 💙 kya chal raha?"
   ]
 };
 
@@ -135,7 +128,7 @@ async function parseDate(text) {
   const lower = text.toLowerCase();
 
 
-  // Manual min parse
+  // Manual minutes
   const minMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
 
   if (minMatch) {
@@ -143,6 +136,7 @@ async function parseDate(text) {
     const mins = parseInt(minMatch[1]);
 
     if (!isNaN(mins)) {
+
       return {
         timestamp: now + mins * 60 * 1000
       };
@@ -164,9 +158,9 @@ async function parseDate(text) {
           content: `
 Current timestamp: ${now}
 
-Convert user message to FUTURE timestamp.
+Convert to FUTURE timestamp.
 
-Return ONLY JSON:
+Return JSON:
 
 {
  "timestamp": number
@@ -215,11 +209,11 @@ async function detectEventAI(text) {
           content: `
 Detect future event.
 
-Return ONLY JSON:
+Return JSON:
 
 {
-  "hasEvent": true/false,
-  "title": "event name"
+ "hasEvent": true/false,
+ "title": "event name"
 }
 `
         },
@@ -261,8 +255,7 @@ app.post("/chat", async (req, res) => {
 
       db[fcmToken] = {
         profile: {
-          name: null,
-          mood: null   // ⭐ IMPORTANT
+          mood: null
         },
         events: [],
         history: [],
@@ -275,18 +268,18 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= SAVE HISTORY =================
+    // ================= SAVE USER MSG =================
 
     user.history.push({
       role: "user",
       content: message
     });
 
-    if (user.history.length > 12) user.history.shift();
+    if (user.history.length > 15) user.history.shift();
 
 
 
-    // ================= MOOD CHECK =================
+    // ================= MOOD CHECK (NO RETURN) =================
 
     const mood = detectMood(message);
 
@@ -298,9 +291,16 @@ app.post("/chat", async (req, res) => {
 
       if (moodReplies[mood]) {
 
-        return res.json({
-          reply: randomFrom(moodReplies[mood])
+        const moodMsg = randomFrom(moodReplies[mood]);
+
+        user.history.push({
+          role: "assistant",
+          content: moodMsg
         });
+
+        saveDB(db);
+
+        return res.json({ reply: moodMsg });
       }
     }
 
@@ -352,7 +352,7 @@ app.post("/chat", async (req, res) => {
         saveDB(db);
 
         return res.json({
-          reply: `Got you 😤🔥 ${event.title} at ${formatTime(event.timestamp)} 💙`
+          reply: `Got you 😤🔥 ${aiEvent.title} at ${formatTime(event.timestamp)} 💙`
         });
       }
 
@@ -381,12 +381,12 @@ app.post("/chat", async (req, res) => {
           content: `
 You are MindCare.
 
-Talk like a real college best friend.
-Use Hinglish sometimes.
-No robotic tone.
+Talk like best friend.
+Use Hinglish.
 Supportive + funny.
-Keep replies short.
+No robotic tone.
 Max 2 questions.
+Keep short.
 `
         },
 
@@ -439,56 +439,60 @@ cron.schedule("*/30 * * * * *", async () => {
         const diff = e.timestamp - now;
 
 
-        // 5 min before
+
+        // ===== 5 MIN BEFORE =====
         if (
           diff <= 5 * 60 * 1000 &&
           diff > 3 * 60 * 1000 &&
           !e.notified.five
         ) {
 
-     const msg = `5 min left for ${e.title} 😤💙`;
+          const msg = `5 min left for ${e.title} 😤💙`;
 
-await admin.messaging().send({
+          await admin.messaging().send({
 
-  token,
+            token,
 
-  notification: {
-    title: "🔥 You Got This",
-    body: msg
-  },
+            notification: {
+              title: "🔥 You Got This",
+              body: msg
+            },
 
-  data: {
-    message: msg
-  }
+            data: {
+              message: msg,
+              open: "chat"
+            }
 
-});
+          });
 
           e.notified.five = true;
         }
 
 
-        // After
+
+        // ===== AFTER EVENT =====
         if (
           diff <= -2 * 60 * 1000 &&
           !e.notified.after
         ) {
 
-         const msg = `Kaisa gaya ${e.title}? 🤗`;
+          const msg = `Kaisa gaya ${e.title}? 🤗`;
 
-await admin.messaging().send({
+          await admin.messaging().send({
 
-  token,
+            token,
 
-  notification: {
-    title: "💙 Proud of You",
-    body: msg
-  },
+            notification: {
+              title: "💙 Proud of You",
+              body: msg
+            },
 
-  data: {
-    message: msg
-  }
+            data: {
+              message: msg,
+              open: "chat"
+            }
 
-});
+          });
 
           e.notified.after = true;
         }
