@@ -1,10 +1,11 @@
-// ================= IST TIME HELPER =================
+// ================= IST TIME =================
 
 function getISTDate() {
   return new Date(
     new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
   );
 }
+
 const path = require("path");
 require("dotenv").config();
 
@@ -68,7 +69,7 @@ function detectMood(text) {
   text = text.toLowerCase();
 
   if (text.includes("sad") || text.includes("cry")) return "low";
-  if (text.includes("scared") || text.includes("stress")) return "anxious";
+  if (text.includes("stress") || text.includes("anxious")) return "anxious";
   if (text.includes("happy") || text.includes("great")) return "high";
   if (text.includes("tired")) return "tired";
 
@@ -87,8 +88,7 @@ function detectName(text) {
 }
 
 
-
-// ================= AI EVENT DETECTOR =================
+// ================= EVENT DETECTOR =================
 
 async function detectEventAI(text) {
 
@@ -106,7 +106,7 @@ async function detectEventAI(text) {
         {
           role: "system",
           content: `
-Detect future event.
+Detect if user mentions ANY future event.
 
 Return ONLY JSON:
 
@@ -137,14 +137,13 @@ Return ONLY JSON:
 }
 
 
-
 // ================= DATE PARSER =================
 
 async function parseDate(text) {
 
   try {
 
-    const now = new Date();
+    const now = getISTDate();
 
     const res = await groq.chat.completions.create({
 
@@ -156,17 +155,22 @@ async function parseDate(text) {
         {
           role: "system",
           content: `
-Current time: ${now.toISOString()}
+Current IST time: ${now.toISOString()}
 
-Return REAL JSON:
+Return ONLY JSON:
 
 {
  "date":"YYYY-MM-DD",
  "time":"HH:MM"
 }
 
-Calculate actual time.
-Never use HH:MM.
+Calculate real time.
+
+Examples:
+"in 5 min" → calculate
+"tomorrow 9am" → calculate
+
+No explanation.
 `
         },
         {
@@ -179,23 +183,23 @@ Never use HH:MM.
     const parsed = JSON.parse(res.choices[0].message.content);
 
     if (!parsed.time || parsed.time.includes("H")) {
-      throw new Error("Bad time");
+      throw new Error("Invalid time");
     }
 
     return parsed;
 
   } catch {
 
-    // fallback → 10 min later
-    const d = new Date(Date.now() + 10 * 60000);
+    // Fallback: +10 min IST
+    const d = getISTDate();
+    d.setMinutes(d.getMinutes() + 10);
 
     return {
-      date: d.toISOString().slice(0, 10),
-      time: d.toTimeString().slice(0, 5)
+      date: d.toISOString().slice(0,10),
+      time: d.toTimeString().slice(0,5)
     };
   }
 }
-
 
 
 // ================= CHAT =================
@@ -237,7 +241,8 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Save msg
+    // ================= SAVE USER MSG =================
+
     user.history.push({
       role: "user",
       content: message
@@ -247,7 +252,8 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Mood
+    // ================= MOOD =================
+
     const mood = detectMood(message);
 
     if (mood) {
@@ -269,14 +275,16 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Name
+    // ================= NAME =================
+
     const name = detectName(message);
 
     if (name) user.profile.name = name;
 
 
 
-    // Waiting for time
+    // ================= WAITING FOR DATE =================
+
     if (user.waitingFor) {
 
       const parsed = await parseDate(message);
@@ -302,7 +310,8 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Event detect
+    // ================= EVENT DETECT =================
+
     const aiEvent = await detectEventAI(message);
 
     if (aiEvent.hasEvent && !user.waitingFor) {
@@ -337,7 +346,8 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Main AI
+    // ================= MAIN AI =================
+
     let reply = "Bro 😭 error";
 
     try {
@@ -355,13 +365,16 @@ app.post("/chat", async (req, res) => {
           {
             role: "system",
             content: `
-You are Harsimar's close friend.
+You are MindCare, Harsimar's close best friend.
 
 Profile:
 ${JSON.stringify(user.profile)}
 
-Be emotional. Remember past.
-Use emojis.
+Rules:
+- Remember past chats
+- Be emotional
+- Be supportive
+- Use emojis 😤💙🔥
 `
           },
 
@@ -378,7 +391,8 @@ Use emojis.
 
 
 
-    // Save bot
+    // ================= SAVE BOT =================
+
     user.history.push({
       role: "assistant",
       content: reply
@@ -402,14 +416,14 @@ Use emojis.
 
 
 
-// ================= SMART REMINDER =================
+// ================= SMART REMINDERS =================
 
 cron.schedule("* * * * *", async () => {
 
   try {
 
     const db = loadDB();
-    const now = new Date();
+    const now = getISTDate();
 
     for (const token in db) {
 
@@ -417,16 +431,18 @@ cron.schedule("* * * * *", async () => {
 
         if (!e.date || !e.time) continue;
 
-        const eventTime = new Date(`${e.date}T${e.time}`);
+        // Force IST
+        const eventTime = new Date(`${e.date}T${e.time}:00+05:30`);
+
         const diff = eventTime - now;
 
 
         if (!e.notified) {
-          e.notified = { hour:false, five:false, after:false };
+          e.notified = { five:false, after:false };
         }
 
 
-        // 5 min before
+        // 🔥 5 MIN BEFORE
         if (diff <= 300000 && diff > 240000 && !e.notified.five) {
 
           await admin.messaging().send({
@@ -441,7 +457,7 @@ cron.schedule("* * * * *", async () => {
         }
 
 
-        // After
+        // 💙 AFTER
         if (diff < -300000 && !e.notified.after) {
 
           await admin.messaging().send({
