@@ -55,7 +55,6 @@ function saveDB(data) {
 
 // ================= HELPERS =================
 
-// Format time in IST
 function formatTime(ts) {
   return new Date(ts).toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
@@ -68,83 +67,17 @@ function formatTime(ts) {
 }
 
 
-// Mood detector
-function detectMood(text) {
 
-  text = text.toLowerCase();
-
-  if (text.includes("sad") || text.includes("cry")) return "low";
-  if (text.includes("stress") || text.includes("anxious")) return "anxious";
-  if (text.includes("happy") || text.includes("great")) return "high";
-  if (text.includes("tired")) return "tired";
-
-  return null;
-}
-
-
-// Name detector
-function detectName(text) {
-  const match = text.match(/my name is (\w+)/i);
-  return match ? match[1] : null;
-}
-
-
-// ================= EVENT AI =================
-
-async function detectEventAI(text) {
-
-  try {
-
-    const res = await groq.chat.completions.create({
-
-      model: "llama-3.1-8b-instant",
-
-      temperature: 0,
-
-      max_tokens: 120,
-
-      messages: [
-        {
-          role: "system",
-          content: `
-Detect if user mentions ANY future event.
-
-Return ONLY JSON:
-
-{
-  "hasEvent": true/false,
-  "title": "event name",
-  "description": "short desc"
-}
-`
-        },
-        {
-          role: "user",
-          content: text
-        }
-      ]
-    });
-
-    return JSON.parse(res.choices[0].message.content);
-
-  } catch {
-
-    return { hasEvent: false };
-  }
-}
-
-
-
-// ================= DATE PARSER =================
+// ================= DATE PARSER (HYBRID) =================
 
 async function parseDate(text) {
 
   const now = Date.now();
   const lower = text.toLowerCase();
 
-  // ================= MANUAL MINUTE PARSE =================
 
-  // Matches: in 5 min, after 10 minutes, 6 min
+  // ===== MANUAL "X MIN" PARSE =====
+
   const minMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
 
   if (minMatch) {
@@ -162,14 +95,13 @@ async function parseDate(text) {
   }
 
 
-  // ================= AI FALLBACK =================
+  // ===== AI FALLBACK =====
 
   try {
 
     const res = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
-
       temperature: 0,
 
       messages: [
@@ -206,11 +138,54 @@ Never return past time.
 
   } catch {
 
-    console.log("⚠️ AI time failed, fallback +5min");
+    console.log("⚠️ AI time failed → fallback +5min");
 
     return {
       timestamp: now + 5 * 60 * 1000
     };
+  }
+}
+
+
+
+// ================= EVENT AI =================
+
+async function detectEventAI(text) {
+
+  try {
+
+    const res = await groq.chat.completions.create({
+
+      model: "llama-3.1-8b-instant",
+      temperature: 0,
+
+      messages: [
+        {
+          role: "system",
+          content: `
+Detect future event.
+
+Return ONLY JSON:
+
+{
+  "hasEvent": true/false,
+  "title": "event name",
+  "description": "short desc"
+}
+`
+        },
+        {
+          role: "user",
+          content: text
+        }
+      ]
+    });
+
+    return JSON.parse(res.choices[0].message.content);
+
+  } catch {
+
+    return { hasEvent: false };
   }
 }
 
@@ -225,7 +200,7 @@ app.post("/chat", async (req, res) => {
     const { message, fcmToken } = req.body;
 
     if (!message || !fcmToken) {
-      return res.json({ reply: "Bro 😭 say something 💙" });
+      return res.json({ reply: "Bro 😭 kuch bol na 💙" });
     }
 
 
@@ -236,14 +211,9 @@ app.post("/chat", async (req, res) => {
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
-
         profile: {
-          name: null,
-          mood: "neutral",
-          stress: 5,
-          confidence: 5
+          name: null
         },
-
         events: [],
         history: [],
         waitingFor: null
@@ -255,7 +225,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= SAVE USER MSG =================
+    // ===== SAVE HISTORY =====
 
     user.history.push({
       role: "user",
@@ -266,23 +236,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= MOOD =================
-
-    const mood = detectMood(message);
-
-    if (mood) user.profile.mood = mood;
-
-
-
-    // ================= NAME =================
-
-    const name = detectName(message);
-
-    if (name) user.profile.name = name;
-
-
-
-    // ================= WAITING =================
+    // ===== WAITING MODE =====
 
     if (user.waitingFor) {
 
@@ -290,9 +244,11 @@ app.post("/chat", async (req, res) => {
 
       const event = {
         title: user.waitingFor.title,
-        description: user.waitingFor.description,
         timestamp: parsed.timestamp,
-        notified: { five:false, after:false }
+        notified: {
+          five: false,
+          after: false
+        }
       };
 
       user.events.push(event);
@@ -302,13 +258,13 @@ app.post("/chat", async (req, res) => {
       saveDB(db);
 
       return res.json({
-        reply: `Saved 😤🔥 ${event.title} on ${formatTime(event.timestamp)} 💙`
+        reply: `Saved 😤🔥 ${event.title} at ${formatTime(event.timestamp)} 💙`
       });
     }
 
 
 
-    // ================= EVENT DETECT =================
+    // ===== EVENT DETECT =====
 
     const aiEvent = await detectEventAI(message);
 
@@ -320,9 +276,11 @@ app.post("/chat", async (req, res) => {
 
         const event = {
           title: aiEvent.title,
-          description: aiEvent.description,
           timestamp: parsed.timestamp,
-          notified: { five:false, after:false }
+          notified: {
+            five: false,
+            after: false
+          }
         };
 
         user.events.push(event);
@@ -330,7 +288,7 @@ app.post("/chat", async (req, res) => {
         saveDB(db);
 
         return res.json({
-          reply: `Got you 😤🔥 ${event.title} on ${formatTime(event.timestamp)} 💙`
+          reply: `Got you 😤🔥 ${event.title} at ${formatTime(event.timestamp)} 💙`
         });
       }
 
@@ -339,53 +297,39 @@ app.post("/chat", async (req, res) => {
       saveDB(db);
 
       return res.json({
-        reply: `When is "${aiEvent.title}"? ⏰💙`
+        reply: `Kab hai "${aiEvent.title}"? ⏰💙`
       });
     }
 
 
 
-    // ================= MAIN AI =================
+    // ===== MAIN AI =====
 
-    let reply = "Bro 😭 error";
+    const chatAI = await groq.chat.completions.create({
 
-    try {
+      model: "llama-3.1-8b-instant",
+      temperature: 0.9,
 
-      const chatAI = await groq.chat.completions.create({
+      messages: [
 
-        model: "llama-3.1-8b-instant",
+        {
+          role: "system",
+          content: `
+You are MindCare.
 
-        temperature: 0.9,
-
-        max_tokens: 200,
-
-        messages: [
-
-          {
-            role: "system",
-            content: `
-You are Harsimar's close friend.
-
-Profile:
-${JSON.stringify(user.profile)}
-
-Be emotional.
-Remember past chats.
-Use emojis 😤💙🔥
+Talk like a real college best friend.
+Use Hinglish sometimes.
+No robotic tone.
+Supportive + funny.
 `
-          },
+        },
 
-          ...user.history
-        ]
-      });
+        ...user.history
+      ]
+    });
 
-      reply = chatAI.choices[0].message.content;
 
-    } catch {
-
-      reply = "Bro 😭 brain lag 💙";
-    }
-
+    const reply = chatAI.choices[0].message.content;
 
 
     user.history.push({
@@ -395,15 +339,15 @@ Use emojis 😤💙🔥
 
     saveDB(db);
 
-    res.json({ reply });
 
+    res.json({ reply });
 
   } catch (err) {
 
     console.log("🔥 CHAT ERROR:", err);
 
     res.json({
-      reply: "Bro 😭 server tired 💙"
+      reply: "Bro 😭 server lag gaya 💙"
     });
   }
 });
@@ -412,7 +356,7 @@ Use emojis 😤💙🔥
 
 // ================= REMINDER SYSTEM =================
 
-// Every 30 sec
+// Every 30 seconds
 cron.schedule("*/30 * * * * *", async () => {
 
   try {
@@ -420,7 +364,6 @@ cron.schedule("*/30 * * * * *", async () => {
     const db = loadDB();
     const now = Date.now();
 
-    console.log("⏰ Checking reminders:", new Date(now).toLocaleTimeString());
 
     for (const token in db) {
 
@@ -431,25 +374,21 @@ cron.schedule("*/30 * * * * *", async () => {
         const diff = e.timestamp - now;
 
 
-        if (!e.notified) {
-          e.notified = { five:false, after:false };
-        }
 
-
-        // 🔔 5 MIN BEFORE (4–7 min window)
+        // ===== 5 MIN BEFORE =====
         if (
-          diff <= 7 * 60 * 1000 &&
-          diff >= 4 * 60 * 1000 &&
+          diff <= 5 * 60 * 1000 &&
+          diff > 3 * 60 * 1000 &&
           !e.notified.five
         ) {
 
-          console.log("🔔 5-min reminder:", e.title);
-
           await admin.messaging().send({
+
             token,
+
             notification: {
               title: "🔥 You Got This",
-              body: `5 min left for ${e.title} 💙😤 Go smash it`
+              body: `5 min left for ${e.title} 😤💙`
             }
           });
 
@@ -457,20 +396,20 @@ cron.schedule("*/30 * * * * *", async () => {
         }
 
 
-        // 💙 AFTER (3–15 min window)
+
+        // ===== AFTER EVENT =====
         if (
-          diff <= -3 * 60 * 1000 &&
-          diff >= -15 * 60 * 1000 &&
+          diff <= -2 * 60 * 1000 &&
           !e.notified.after
         ) {
 
-          console.log("💙 After reminder:", e.title);
-
           await admin.messaging().send({
+
             token,
+
             notification: {
               title: "💙 Proud of You",
-              body: `How was ${e.title}? 🤗 I’m here`
+              body: `Kaisa gaya ${e.title}? 🤗`
             }
           });
 
@@ -484,9 +423,8 @@ cron.schedule("*/30 * * * * *", async () => {
 
   } catch (err) {
 
-    console.log("❌ Reminder error:", err.message);
+    console.log("Reminder error:", err);
   }
-
 });
 
 
