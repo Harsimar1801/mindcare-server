@@ -376,35 +376,79 @@ app.post("/push-now", async (req, res) => {
 
 // ================= DAILY REMINDER =================
 
-cron.schedule("0 9 * * *", async () => {
+// ================= SMART REMINDERS =================
 
+cron.schedule("* * * * *", async () => {
   const db = loadDB();
-
-  const today = new Date().toISOString().slice(0,10);
-
-  console.log("⏰ Checking reminders", today);
-
+  const now = new Date();
 
   for (const token in db) {
 
     for (const e of db[token].events) {
 
-      if (e.date === today) {
+      const examTime = new Date(`${e.date} ${e.time || "09:00"}`);
+
+      const diff = examTime - now;
+
+      // 1 Day before
+      if (diff > 23*60*60*1000 && diff < 25*60*60*1000 && !e.dayBefore) {
 
         await admin.messaging().send({
-
           token,
-
           notification: {
             title: "🧠 MindCare",
-            body: `How was your ${e.type}? 😤💙`
+            body: "Kal exam hai bro 😤 thoda revise kar le 💙"
           }
         });
+
+        e.dayBefore = true;
       }
+// 5 Minutes before
+if (diff > 4*60*1000 && diff < 6*60*1000 && !e.fiveMin) {
+
+  await admin.messaging().send({
+    token,
+    notification: {
+      title: "⚡ Last Push Bro",
+      body: "5 min left 😤 Deep breath, you got this 💙🔥"
+    }
+  });
+
+  e.fiveMin = true;
+}
+      // 1 Hour before
+      if (diff > 59*60*1000 && diff < 61*60*1000 && !e.hourBefore) {
+
+        await admin.messaging().send({
+          token,
+          notification: {
+            title: "🔥 All The Best",
+            body: "You got this bro 💙 Go kill it 😤"
+          }
+        });
+
+        e.hourBefore = true;
+      }
+
+      // After exam
+      if (diff < -60*60*1000 && !e.after) {
+
+        await admin.messaging().send({
+          token,
+          notification: {
+            title: "🧠 MindCare",
+            body: "How was your exam? Proud of you 💙😄"
+          }
+        });
+
+        e.after = true;
+      }
+
     }
   }
-});
 
+  saveDB(db);
+});
 
 
 // ================= START =================
