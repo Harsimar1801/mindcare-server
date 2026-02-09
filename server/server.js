@@ -1,3 +1,10 @@
+// ================= IST TIME HELPER =================
+
+function getISTDate() {
+  return new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+}
 const path = require("path");
 require("dotenv").config();
 
