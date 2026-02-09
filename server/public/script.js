@@ -92,6 +92,7 @@ function addMessage(text, type) {
 }
 
 
+
 // ================= LOAD CHAT FROM SERVER =================
 
 async function loadServerChat() {
