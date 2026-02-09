@@ -1,3 +1,23 @@
+// ================= BOT NAME SAVE =================
+
+const botNameInput = document.getElementById("botName");
+
+// Load saved name
+const savedName = localStorage.getItem("botName");
+
+if (savedName) {
+  botNameInput.value = savedName;
+}
+
+// Save on change
+botNameInput.addEventListener("change", () => {
+
+  const name = botNameInput.value.trim();
+
+  if (name.length > 0) {
+    localStorage.setItem("botName", name);
+  }
+});
 // ================= TOKEN =================
 
 function setFCMToken(token) {

@@ -8,7 +8,7 @@
 }
 
 
-/* ================= BODY ================= */
+/* ================= DEFAULT BODY ================= */
 
 body {
   height: 100vh;
@@ -44,6 +44,8 @@ body {
 }
 
 
+/* Buttons */
+
 .start-btn {
   width: 100%;
   padding: 14px;
@@ -74,6 +76,13 @@ body {
 
 
 
+/* ================= CHAT BODY FIX ================= */
+
+/* ================= CHAT BACKGROUND ================= */
+
+
+
+
 /* ================= APP ================= */
 
 .app {
@@ -87,21 +96,12 @@ body {
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 20px 40px rgba(0,0,0,0.45);
+  margin: auto;
 }
 
 
-/* ================= HEADER ================= */
 
-.header {
-  padding: 18px 15px;
-  background: rgba(255,255,255,0.08);
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-}
 
-.header h1 {
-  font-size: 22px;
-  font-weight: 600;
-}
 
 
 /* ================= CHAT ================= */
@@ -114,6 +114,7 @@ body {
   flex-direction: column;
   gap: 12px;
 }
+
 
 
 /* ================= MESSAGE ================= */
@@ -145,6 +146,7 @@ body {
 }
 
 
+
 /* ================= INPUT ================= */
 
 .input-box {
@@ -173,6 +175,7 @@ body {
 }
 
 
+
 /* ================= SEND BTN ================= */
 
 .send-btn {
@@ -196,6 +199,7 @@ body {
 }
 
 
+
 /* ================= SCROLLBAR ================= */
 
 #chat::-webkit-scrollbar {
@@ -206,6 +210,7 @@ body {
   background: rgba(255,255,255,0.3);
   border-radius: 10px;
 }
+
 
 
 /* ================= ANIMATION ================= */
@@ -224,6 +229,7 @@ body {
 }
 
 
+
 /* ================= MOBILE ================= */
 
 @media (max-width: 480px) {
@@ -232,4 +238,154 @@ body {
     height: 100vh;
     border-radius: 0;
   }
+}
+/* ================= CHAT BACKGROUND IMAGE ================= */
+
+/* ================= CHAT BACKGROUND IMAGE ================= */
+
+.chat-body {
+  /* Remove flex center for chat page */
+  display: block;
+
+  /* Background image */
+  background-image: url("bg-dark-abstract.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+}
+
+/* Dark overlay */
+.chat-body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  background: rgba(15, 18, 35, 0.7);
+
+  z-index: -1;
+}
+/* ================= NAVBAR ================= */
+
+.navbar {
+  height: 64px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 14px;
+
+  background: rgba(20, 22, 45, 0.75);
+  backdrop-filter: blur(15px);
+
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+
+/* Back Button */
+.back-btn {
+  background: transparent;
+  border: none;
+  color: white;
+
+  font-size: 22px;
+  cursor: pointer;
+
+  width: 40px;
+}
+
+
+/* Center */
+.nav-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  line-height: 1.1;
+}
+
+
+.app-name {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+
+.status {
+  font-size: 11px;
+  color: #6cff8d;
+  opacity: 0.9;
+  margin-left: -135%;
+}
+
+
+/* Right Menu */
+.nav-right {
+  width: 40px;
+
+  text-align: center;
+  font-size: 22px;
+
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.nav-right:hover {
+  opacity: 1;
+}
+/* ================= APP LOGO ================= */
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-logo {
+  width: 45px;
+  height: 45px;
+align-items: center;
+align-content: space-around;
+
+  border-radius: 50%;
+
+  object-fit: cover;
+margin-left: -50%;
+  background: linear-gradient(135deg, #6c63ff, #857eff);
+
+  padding: 2px;
+
+  box-shadow: 0 0 10px rgba(108,99,255,0.6);
+}
+/* ================= BOT NAME EDIT ================= */
+
+.bot-name {
+  background: transparent;
+  border: none;
+
+  color: white;
+  font-size: 18px;
+  font-weight: 600;
+
+  outline: none;
+  width: 120px;
+
+  cursor: pointer;
+}
+
+.bot-name:focus {
+  border-bottom: 2px solid #6c63ff;
+}
+
+.bot-name::placeholder {
+  color: rgba(255,255,255,0.6);
 }
