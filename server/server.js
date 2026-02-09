@@ -67,6 +67,65 @@ function formatTime(ts) {
 }
 
 
+// ================= MOOD DETECTOR =================
+
+function detectMood(text) {
+
+  const t = text.toLowerCase();
+
+  if (t.includes("happy") || t.includes("excited")) return "happy";
+
+  if (t.includes("sad") || t.includes("cry") || t.includes("down")) return "sad";
+
+  if (t.includes("stress") || t.includes("anxious") || t.includes("panic"))
+    return "anxious";
+
+  if (t.includes("tired") || t.includes("burnout") || t.includes("sleepy"))
+    return "tired";
+
+  if (t.includes("lonely") || t.includes("alone"))
+    return "lonely";
+
+  return null;
+}
+
+
+// ================= MOOD REPLIES =================
+
+const moodReplies = {
+
+  happy: [
+    "Ayy 😄 love this vibe! What made you happy today bro?",
+    "Niceee 💙 why you smiling like that? Bata na 😤"
+  ],
+
+  sad: [
+    "Bro 💙 kya hua? I’m here.",
+    "Hey 😔 wanna talk about it?"
+  ],
+
+  anxious: [
+    "Hey relax 😤💙 what’s stressing you?",
+    "Breathe first bro 🤍 tell me."
+  ],
+
+  tired: [
+    "Oof 😴 long day? What drained you?",
+    "Bro you sound exhausted 💙 kya scene?"
+  ],
+
+  lonely: [
+    "Hey 🤍 you’re not alone. Talk to me.",
+    "Main hoon na 💙 kya hua?"
+  ]
+};
+
+
+function randomFrom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+
 
 // ================= DATE PARSER =================
 
@@ -76,7 +135,7 @@ async function parseDate(text) {
   const lower = text.toLowerCase();
 
 
-  // Manual "X min" parse
+  // Manual min parse
   const minMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
 
   if (minMatch) {
@@ -112,8 +171,6 @@ Return ONLY JSON:
 {
  "timestamp": number
 }
-
-Never return past time.
 `
         },
         {
@@ -162,8 +219,7 @@ Return ONLY JSON:
 
 {
   "hasEvent": true/false,
-  "title": "event name",
-  "description": "short desc"
+  "title": "event name"
 }
 `
         },
@@ -184,74 +240,6 @@ Return ONLY JSON:
 
 
 
-// =================================================
-// ✅ MOOD ANALYZER API (NEW FEATURE)
-// =================================================
-
-app.post("/analyze-mood", async (req, res) => {
-
-  try {
-
-    const { text } = req.body;
-
-    if (!text) {
-      return res.json({ mood: "neutral" });
-    }
-
-    const ai = await groq.chat.completions.create({
-
-      model: "llama-3.1-8b-instant",
-      temperature: 0,
-
-      messages: [
-
-        {
-          role: "system",
-          content: `
-Classify this into ONE mood:
-
-happy
-sad
-anxious
-calm
-tired
-excited
-neutral
-
-Return ONLY the word.
-`
-        },
-
-        {
-          role: "user",
-          content: text
-        }
-
-      ]
-
-    });
-
-
-    const mood =
-      ai.choices[0].message.content
-        .trim()
-        .toLowerCase();
-
-
-    res.json({ mood });
-
-
-  } catch (err) {
-
-    console.log("Mood AI error:", err);
-
-    res.json({ mood: "neutral" });
-  }
-
-});
-
-
-
 // ================= CHAT =================
 
 app.post("/chat", async (req, res) => {
@@ -268,11 +256,13 @@ app.post("/chat", async (req, res) => {
     let db = loadDB();
 
 
+    // Create user
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
         profile: {
-          name: null
+          name: null,
+          mood: null   // ⭐ IMPORTANT
         },
         events: [],
         history: [],
@@ -285,7 +275,8 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Save history
+    // ================= SAVE HISTORY =================
+
     user.history.push({
       role: "user",
       content: message
@@ -295,7 +286,28 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Waiting mode
+    // ================= MOOD CHECK =================
+
+    const mood = detectMood(message);
+
+    if (mood && user.profile.mood !== mood) {
+
+      user.profile.mood = mood;
+
+      saveDB(db);
+
+      if (moodReplies[mood]) {
+
+        return res.json({
+          reply: randomFrom(moodReplies[mood])
+        });
+      }
+    }
+
+
+
+    // ================= WAITING MODE =================
+
     if (user.waitingFor) {
 
       const parsed = await parseDate(message);
@@ -303,10 +315,7 @@ app.post("/chat", async (req, res) => {
       const event = {
         title: user.waitingFor.title,
         timestamp: parsed.timestamp,
-        notified: {
-          five: false,
-          after: false
-        }
+        notified: { five:false, after:false }
       };
 
       user.events.push(event);
@@ -322,7 +331,8 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Event detect
+    // ================= EVENT DETECT =================
+
     const aiEvent = await detectEventAI(message);
 
     if (aiEvent.hasEvent && !user.waitingFor) {
@@ -334,10 +344,7 @@ app.post("/chat", async (req, res) => {
         const event = {
           title: aiEvent.title,
           timestamp: parsed.timestamp,
-          notified: {
-            five: false,
-            after: false
-          }
+          notified: { five:false, after:false }
         };
 
         user.events.push(event);
@@ -360,7 +367,8 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Main AI
+    // ================= MAIN AI =================
+
     const chatAI = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
