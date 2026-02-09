@@ -1,47 +1,3 @@
-// ================= AUTO THEME FROM MOOD =================
-
-(function(){
-
-  const mood = localStorage.getItem("userMood");
-
-  if(!mood) return;
-
-  const app = document.querySelector(".app");
-  const header = document.querySelector(".header");
-  const sendBtn = document.querySelector(".send-btn");
-
-  const themes = {
-
-    happy: "#FFD93D",
-    calm: "#4D96FF",
-    sad: "#6C63FF",
-    anxious: "#FF6B6B",
-    stressed: "#FF884B",
-    tired: "#888888",
-    lonely: "#845EC2",
-    excited: "#00C9A7"
-  };
-
-  const color = themes[mood] || "#6C63FF"; // default
-
-
-  function adjust(hex, amt){
-
-    let num = parseInt(hex.replace("#",""),16);
-
-    let r = Math.min(255, Math.max(0,(num>>16)+amt));
-    let g = Math.min(255, Math.max(0,((num>>8)&255)+amt));
-    let b = Math.min(255, Math.max(0,(num&255)+amt));
-
-    return `rgb(${r},${g},${b})`;
-  }
-
-
-  app.style.background = adjust(color,40);
-  header.style.background = adjust(color,-25);
-  sendBtn.style.background = adjust(color,-10);
-
-})();
 // ================= TOKEN =================
 
 function setFCMToken(token) {
@@ -102,6 +58,7 @@ const sendBtn = document.querySelector(".send-btn");
 const themePicker = document.getElementById("themePicker");
 const app = document.querySelector(".app");
 const header = document.querySelector(".header");
+const inputBox = document.querySelector(".input-box");
 
 
 // ================= ADD MESSAGE =================
@@ -191,58 +148,143 @@ input.addEventListener("keydown", e => {
 
 
 // =====================================
-// THEME + SEND BUTTON CONTRAST LOGIC
+// 🧠 MINDCARE SMART THEME ENGINE
 // =====================================
 
 
-// Adjust brightness helper
-function adjustColor(hex, amt) {
+// Mood → Soft Colors
+const moodThemes = {
+  happy: "#F7C59F",
+  calm: "#7FB7BE",
+  sad: "#6C63FF",
+  anxious: "#C77DFF",
+  stressed: "#FF9F68",
+  tired: "#9CA3AF",
+  lonely: "#B39DDB",
+  excited: "#64DFDF"
+};
+
+
+// HEX → RGB
+function hexToRgb(hex) {
 
   let num = parseInt(hex.replace("#", ""), 16);
 
-  let r = Math.min(255, Math.max(0, (num >> 16) + amt));
-  let g = Math.min(255, Math.max(0, ((num >> 8) & 255) + amt));
-  let b = Math.min(255, Math.max(0, (num & 255) + amt));
-
-  return { r, g, b };
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255
+  };
 }
 
 
-// Brightness (for contrast)
-function getBrightness({ r, g, b }) {
+// Clamp
+function clamp(v) {
+  return Math.min(255, Math.max(0, v));
+}
+
+
+// Make color soft
+function soften({ r, g, b }) {
+
+  return {
+    r: clamp(r * 0.6 + 50),
+    g: clamp(g * 0.6 + 50),
+    b: clamp(b * 0.6 + 50)
+  };
+}
+
+
+// Brightness
+function brightness({ r, g, b }) {
+
   return (r * 299 + g * 587 + b * 114) / 1000;
 }
 
 
-// Theme picker
+// APPLY THEME
+function applyTheme(baseHex) {
+
+  const rgb = hexToRgb(baseHex);
+  const soft = soften(rgb);
+
+  const bright = brightness(soft);
+  const darkMode = bright < 135;
+
+
+  // App background
+  app.style.background = `
+    linear-gradient(
+      135deg,
+      rgba(${soft.r},${soft.g},${soft.b},0.35),
+      rgba(${soft.r - 25},${soft.g - 25},${soft.b - 25},0.35)
+    )
+  `;
+
+
+  // Header
+  header.style.background =
+    `rgba(${soft.r},${soft.g},${soft.b},0.45)`;
+
+
+  // Input area
+  inputBox.style.background =
+    `rgba(${soft.r},${soft.g},${soft.b},0.25)`;
+
+
+  // Send button
+  sendBtn.style.background =
+    `rgb(${soft.r - 10},${soft.g - 10},${soft.b - 10})`;
+
+
+  // Text colors
+  const textColor = darkMode ? "#ffffff" : "#121212";
+
+  app.style.color = textColor;
+  input.style.color = textColor;
+
+  input.style.background = darkMode
+    ? "rgba(255,255,255,0.15)"
+    : "rgba(0,0,0,0.15)";
+
+  sendBtn.style.color = darkMode ? "#fff" : "#111";
+
+
+  // Placeholder
+  input.style.setProperty("color", textColor);
+}
+
+
+
+// ================= LOAD SAVED THEME =================
+
+// From picker
+const savedColor = localStorage.getItem("themeColor");
+
+if (savedColor) {
+  applyTheme(savedColor);
+}
+
+
+// From mood
+const savedMood = localStorage.getItem("userMood");
+
+if (!savedColor && savedMood && moodThemes[savedMood]) {
+  applyTheme(moodThemes[savedMood]);
+}
+
+
+
+// ================= PICKER =================
+
 if (themePicker) {
 
   themePicker.addEventListener("input", () => {
 
-    const base = themePicker.value;
+    const color = themePicker.value;
 
+    applyTheme(color);
 
-    // App background (lighter)
-    const main = adjustColor(base, 40);
-    app.style.background = `rgb(${main.r},${main.g},${main.b})`;
-
-
-    // Header (darker)
-    const head = adjustColor(base, -25);
-    header.style.background = `rgb(${head.r},${head.g},${head.b})`;
-
-
-    // Button
-    const btn = adjustColor(base, -10);
-    sendBtn.style.background = `rgb(${btn.r},${btn.g},${btn.b})`;
-
-
-    // Auto arrow contrast
-    const brightness = getBrightness(btn);
-
-    sendBtn.style.color =
-      brightness < 140 ? "#ffffff" : "#1a1a1a";
-
+    localStorage.setItem("themeColor", color);
   });
-
 }
