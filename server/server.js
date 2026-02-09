@@ -1,5 +1,3 @@
-// ================= IMPORTS =================
-
 const path = require("path");
 require("dotenv").config();
 
@@ -9,8 +7,6 @@ const fs = require("fs");
 const cron = require("node-cron");
 const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
-const session = require("express-session");
-const { google } = require("googleapis");
 
 
 // ================= FIREBASE =================
@@ -33,13 +29,6 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
-
-app.use(session({
-  secret: process.env.SESSION_SECRET || "mindcare_secret",
-  resave: false,
-  saveUninitialized: false
-}));
-
 app.use(express.static(path.join(__dirname, "public")));
 
 
@@ -52,20 +41,6 @@ if (!process.env.GROQ_API_KEY) {
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
-});
-
-
-// ================= GOOGLE AUTH =================
-
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
-);
-
-const calendar = google.calendar({
-  version: "v3",
-  auth: oauth2Client
 });
 
 
@@ -151,81 +126,13 @@ function randomFrom(arr) {
 
 function parseDate(text) {
 
-  const match = text.toLowerCase()
+  const match = text
+    .toLowerCase()
     .match(/(\d+)\s*(min|mins|minute|minutes)/);
 
   if (!match) return null;
 
   return Date.now() + parseInt(match[1]) * 60000;
-}
-
-
-// ================= GOOGLE LOGIN =================
-
-// Step 9
-app.get("/auth/google", (req, res) => {
-
-  const url = oauth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: ["https://www.googleapis.com/auth/calendar"]
-  });
-
-  res.redirect(url);
-});
-
-
-// Step 10
-app.get("/auth/google/callback", async (req, res) => {
-
-  try {
-
-    const code = req.query.code;
-
-    const { tokens } = await oauth2Client.getToken(code);
-
-    oauth2Client.setCredentials(tokens);
-
-    req.session.googleTokens = tokens;
-
-    res.redirect("/chat.html");
-
-  } catch (err) {
-
-    console.log("Google Auth Error:", err);
-    res.send("Google Login Failed");
-  }
-});
-
-
-// ================= ADD TO GOOGLE CALENDAR =================
-
-async function addToGoogleCalendar(session, title, time) {
-
-  if (!session.googleTokens) return false;
-
-  oauth2Client.setCredentials(session.googleTokens);
-
-  const event = {
-
-    summary: title,
-
-    start: {
-      dateTime: new Date(time).toISOString(),
-      timeZone: "Asia/Kolkata"
-    },
-
-    end: {
-      dateTime: new Date(time + 60 * 60 * 1000).toISOString(),
-      timeZone: "Asia/Kolkata"
-    }
-  };
-
-  await calendar.events.insert({
-    calendarId: "primary",
-    resource: event
-  });
-
-  return true;
 }
 
 
@@ -253,6 +160,7 @@ app.post("/chat", async (req, res) => {
       };
     }
 
+
     const user = db[fcmToken];
 
 
@@ -272,6 +180,7 @@ app.post("/chat", async (req, res) => {
     if (mood) {
 
       user.profile.mood = mood;
+      saveDB(db);
 
       const reply = randomFrom(moodReplies[mood]);
 
@@ -292,18 +201,16 @@ app.post("/chat", async (req, res) => {
 
     if (time) {
 
-      const title = "Exam";
-
       user.events.push({
-        title,
+        title: "Exam",
         time,
-        notified: { before: false, after: false }
+        notified: {
+          before: false,
+          after: false
+        }
       });
 
-      // Add to Google Calendar
-      await addToGoogleCalendar(req.session, title, time);
-
-      const reply = `All the best 😤💙 Exam at ${formatTime(time)} (Saved in Calendar)`;
+      const reply = `All the best 😤💙 Exam at ${formatTime(time)}`;
 
       user.history.push({
         role: "assistant",
@@ -370,7 +277,32 @@ Ask max 1 question.
 
 
 
-// ================= REMINDER =================
+// ================= GET HISTORY API =================
+
+app.get("/history/:token", (req, res) => {
+
+  try {
+
+    const token = req.params.token;
+
+    if (!token) return res.json([]);
+
+    const db = loadDB();
+
+    if (!db[token]) return res.json([]);
+
+    res.json(db[token].history || []);
+
+  } catch (err) {
+
+    console.log("History error:", err);
+    res.json([]);
+  }
+});
+
+
+
+// ================= REMINDER SYSTEM =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -384,7 +316,7 @@ cron.schedule("*/30 * * * * *", async () => {
 
       const user = db[token];
 
-      if (!user.events) continue;
+      if (!user.events || !user.history) continue;
 
 
       for (const e of user.events) {
@@ -392,8 +324,12 @@ cron.schedule("*/30 * * * * *", async () => {
         const diff = e.time - now;
 
 
-        // Before
-        if (diff <= 5 * 60000 && diff > 2 * 60000 && !e.notified.before) {
+        // ===== BEFORE =====
+        if (
+          diff <= 5 * 60000 &&
+          diff > 2 * 60000 &&
+          !e.notified.before
+        ) {
 
           const msg = "5 min left 😤💙 All the best!";
 
@@ -401,6 +337,7 @@ cron.schedule("*/30 * * * * *", async () => {
             role: "assistant",
             content: msg
           });
+
 
           await admin.messaging().send({
 
@@ -411,15 +348,21 @@ cron.schedule("*/30 * * * * *", async () => {
               body: msg
             },
 
-            data: { message: msg }
+            data: {
+              message: msg
+            }
+
           });
 
           e.notified.before = true;
         }
 
 
-        // After
-        if (diff <= -2 * 60000 && !e.notified.after) {
+        // ===== AFTER =====
+        if (
+          diff <= -2 * 60000 &&
+          !e.notified.after
+        ) {
 
           const msg = "Kaisa gaya exam? 🤗 Bata na";
 
@@ -427,6 +370,7 @@ cron.schedule("*/30 * * * * *", async () => {
             role: "assistant",
             content: msg
           });
+
 
           await admin.messaging().send({
 
@@ -437,7 +381,10 @@ cron.schedule("*/30 * * * * *", async () => {
               body: msg
             },
 
-            data: { message: msg }
+            data: {
+              message: msg
+            }
+
           });
 
           e.notified.after = true;

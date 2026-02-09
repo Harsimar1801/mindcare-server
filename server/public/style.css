@@ -688,3 +688,13 @@ margin-left: -50%;
     border-radius: 0;
   }
 }
+.msg-time {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-top: 4px;
+  margin-left: 4px;
+}
+
+.msg-text {
+  display: block;
+}

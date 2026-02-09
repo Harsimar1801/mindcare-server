@@ -56,15 +56,40 @@ const inputBox = document.querySelector(".input-box");
 function addMessage(text, type) {
 
   const div = document.createElement("div");
-
   div.className = type;
-  div.innerText = text;
+
+  // Message text
+  const msg = document.createElement("div");
+  msg.className = "msg-text";
+  msg.innerText = text;
+
+  // Time (hidden by default)
+  const now = new Date();
+  const time = now.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true
+  });
+
+  const timeDiv = document.createElement("div");
+  timeDiv.className = "msg-time";
+  timeDiv.innerText = time;
+  timeDiv.style.display = "none"; // hidden initially
+
+  // Toggle time on click
+  div.addEventListener("click", () => {
+    timeDiv.style.display =
+      timeDiv.style.display === "none" ? "block" : "none";
+  });
+
+  div.appendChild(msg);
+  div.appendChild(timeDiv);
 
   chat.appendChild(div);
-
   chat.scrollTop = chat.scrollHeight;
-}
 
+  saveChat();
+}
 
 
 // ================= LOAD CHAT FROM SERVER =================
