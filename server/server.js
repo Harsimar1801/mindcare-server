@@ -4,255 +4,9 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
-const Groq = require("groq-sdk");
-
-// ================= APP =================
-
-const app = express();
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-
-// ================= GROQ =================
-
-if (!process.env.GROQ_API_KEY) {
-  console.error("❌ GROQ_API_KEY missing");
-  process.exit(1);
-}
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY
-});
-
-// ================= FILE DB =================
-
-const DB_FILE = "./memory.json";
-
-function loadDB() {
-  if (!fs.existsSync(DB_FILE)) return {};
-  return JSON.parse(fs.readFileSync(DB_FILE));
-}
-
-function saveDB(data) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
-}
-
-// ================= MOOD DETECTOR =================
-
-function detectMood(text) {
-
-  const t = text.toLowerCase();
-
-  if (
-    t.includes("happy") ||
-    t.includes("good") ||
-    t.includes("great") ||
-    t.includes("awesome") ||
-    t.includes("khush") ||
-    t.includes("mast")
-  ) return "happy";
-
-  if (
-    t.includes("sad") ||
-    t.includes("cry") ||
-    t.includes("down") ||
-    t.includes("low") ||
-    t.includes("breakup") ||
-    t.includes("depressed")
-  ) return "sad";
-
-  if (
-    t.includes("stress") ||
-    t.includes("anxious") ||
-    t.includes("panic") ||
-    t.includes("tension")
-  ) return "anxious";
-
-  if (
-    t.includes("tired") ||
-    t.includes("sleep") ||
-    t.includes("exhaust")
-  ) return "tired";
-
-  if (
-    t.includes("alone") ||
-    t.includes("lonely") ||
-    t.includes("akela")
-  ) return "lonely";
-
-  return null;
-}
-
-// ================= MOOD REPLIES =================
-
-const moodReplies = {
-
-  happy: [
-    "😄 Niceee bro! Bata na, kya cheez ne happy kiya?",
-    "Good vibes aa rahi hain 💙 Kya hua aaj?"
-  ],
-
-  sad: [
-    "Bro 💙 lagta hai kuch heavy chal raha hai… bata na.",
-    "I’m here bhai 🤍 Jo bhi hai, share kar."
-  ],
-
-  anxious: [
-    "Relax bro 💙 Pehle breathe karte hain. Kya tension hai?",
-    "Lagta hai pressure zyada hai… kya scene hai?"
-  ],
-
-  tired: [
-    "😴 Thak gaya lag raha hai bro… aaj ka din kaisa tha?",
-    "Rest bhi zaroori hai 💙 kya hua?"
-  ],
-
-  lonely: [
-    "Tu akela nahi hai bhai 🤍 Main hoon na.",
-    "Bata na bro… kya feel ho raha hai?"
-  ]
-};
-
-function randomFrom(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-// ================= CHAT =================
-
-app.post("/chat", async (req, res) => {
-
-  try {
-
-    const { message, fcmToken } = req.body;
-
-    if (!message || !fcmToken) {
-      return res.json({
-        reply: "Bhai kuch likh toh sahi 💙"
-      });
-    }
-
-    let db = loadDB();
-
-    // Create user
-    if (!db[fcmToken]) {
-
-      db[fcmToken] = {
-        profile: {
-          mood: null
-        },
-        history: []
-      };
-    }
-
-    const user = db[fcmToken];
-
-    // Save user msg
-    user.history.push({
-      role: "user",
-      content: message
-    });
-
-    if (user.history.length > 12) {
-      user.history.shift();
-    }
-
-    // ================= MOOD CHECK =================
-
-    const mood = detectMood(message);
-
-    if (mood) {
-
-      user.profile.mood = mood;
-      saveDB(db);
-
-      if (moodReplies[mood]) {
-
-        return res.json({
-          reply: randomFrom(moodReplies[mood]),
-          mood
-        });
-      }
-    }
-
-    // ================= AI =================
-
-    const ai = await groq.chat.completions.create({
-
-      model: "llama-3.1-8b-instant",
-
-      temperature: 0.6, // ⭐ Lower = more stable
-
-      messages: [
-
-        {
-          role: "system",
-          content: `
-You are MindCare.
-
-You are a caring, mature, emotionally intelligent friend.
-
-Rules:
-- Be supportive
-- Never mock
-- Never be insensitive
-- No cringe jokes
-- No fake motivation
-- Use light Hinglish
-- Be calm and natural
-- If user is sad/broken, be empathetic
-- Keep replies short (2-4 lines)
-- Ask at most 1 question
-`
-        },
-
-        ...user.history
-      ]
-    });
-
-    const reply = ai.choices[0].message.content.trim();
-
-    // Save bot msg
-    user.history.push({
-      role: "assistant",
-      content: reply
-    });
-
-    saveDB(db);
-
-    res.json({
-      reply,
-      mood: user.profile.mood
-    });
-
-  }
-
-  catch (err) {
-
-    console.log("🔥 SERVER ERROR:", err);
-
-    res.json({
-      reply: "Bhai thoda issue aa gaya 😭 Thodi der baad try kar 💙"
-    });
-  }
-});
-
-// ================= START =================
-
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log("✅ Server running on", PORT);
-});const path = require("path");
-require("dotenv").config();
-
-const express = require("express");
-const cors = require("cors");
-const fs = require("fs");
 const cron = require("node-cron");
 const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
-
 
 // ================= FIREBASE =================
 
@@ -267,7 +21,6 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-
 // ================= APP =================
 
 const app = express();
@@ -275,7 +28,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
-
 
 // ================= GROQ =================
 
@@ -287,7 +39,6 @@ if (!process.env.GROQ_API_KEY) {
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
-
 
 // ================= FILE DB =================
 
@@ -302,7 +53,6 @@ function saveDB(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
-
 // ================= HELPERS =================
 
 function formatTime(ts) {
@@ -315,43 +65,48 @@ function formatTime(ts) {
   });
 }
 
-
-// ================= MOOD =================
+// ================= MOOD DETECTOR =================
 
 function detectMood(text) {
 
   const t = text.toLowerCase();
 
-  if (t.includes("happy") || t.includes("mast") || t.includes("good")) return "happy";
-  if (t.includes("sad") || t.includes("breakup") || t.includes("low")) return "sad";
-  if (t.includes("stress") || t.includes("anxious")) return "anxious";
-  if (t.includes("tired") || t.includes("sleep")) return "tired";
-  if (t.includes("alone") || t.includes("lonely")) return "lonely";
+  if (t.match(/happy|good|great|awesome|mast|khush/)) return "happy";
+  if (t.match(/sad|cry|down|breakup|depressed|low/)) return "sad";
+  if (t.match(/stress|anxious|panic|tension/)) return "anxious";
+  if (t.match(/tired|sleep|exhaust/)) return "tired";
+  if (t.match(/alone|lonely|akela/)) return "lonely";
 
   return null;
 }
 
+// ================= MOOD REPLIES =================
 
 const moodReplies = {
 
   happy: [
-    "😄 Nice bro! Kya cheez ne happy kiya?",
+    "😄 Nice bro! Bata na, kya cheez ne happy kiya?",
+    "Good vibes aa rahi hain 💙 Kya hua?"
   ],
 
   sad: [
-    "Bhai 💙 kya hua? Bata na.",
+    "Bhai 💙 lagta hai heavy feel ho raha hai… bata na.",
+    "Main hoon na 🤍 kya hua?"
   ],
 
   anxious: [
-    "Relax bro 🤍 kya tension hai?",
+    "Relax bro 💙 pehle breathe karte hain.",
+    "Pressure zyada lag raha?"
   ],
 
   tired: [
-    "Thak gaya lag raha hai 😴 kya hua?",
+    "😴 Thak gaya lag raha hai bro… rest liya?",
+    "Aaj ka din tough tha kya?"
   ],
 
   lonely: [
     "Tu akela nahi hai bhai 💙",
+    "Main hoon na 🤍 baat kar."
   ]
 };
 
@@ -359,23 +114,16 @@ function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-
-// ================= DATE PARSER =================
+// ================= TIME PARSER =================
 
 function parseDate(text) {
 
-  const now = Date.now();
-  const lower = text.toLowerCase();
+  const match = text.toLowerCase().match(/(\d+)\s*(min|mins|minute|minutes)/);
 
-  const match = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
+  if (!match) return null;
 
-  if (match) {
-    return now + parseInt(match[1]) * 60000;
-  }
-
-  return null;
+  return Date.now() + parseInt(match[1]) * 60000;
 }
-
 
 // ================= CHAT =================
 
@@ -391,26 +139,20 @@ app.post("/chat", async (req, res) => {
       });
     }
 
-
     let db = loadDB();
-
 
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
-        profile: {
-          mood: null
-        },
-        events: [],
-        history: []
+        profile: { mood: null },
+        history: [],
+        events: []
       };
     }
 
-
     const user = db[fcmToken];
 
-
-    // Save history
+    // Save user message
     user.history.push({
       role: "user",
       content: message
@@ -428,13 +170,10 @@ app.post("/chat", async (req, res) => {
       user.profile.mood = mood;
       saveDB(db);
 
-      if (moodReplies[mood]) {
-
-        return res.json({
-          reply: randomFrom(moodReplies[mood]),
-          mood
-        });
-      }
+      return res.json({
+        reply: randomFrom(moodReplies[mood]),
+        mood
+      });
     }
 
 
@@ -444,13 +183,11 @@ app.post("/chat", async (req, res) => {
 
     if (time) {
 
-      const event = {
+      user.events.push({
         title: "Exam",
         time,
         notified: false
-      };
-
-      user.events.push(event);
+      });
 
       saveDB(db);
 
@@ -466,6 +203,7 @@ app.post("/chat", async (req, res) => {
     const ai = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
+
       temperature: 0.6,
 
       messages: [
@@ -474,10 +212,14 @@ app.post("/chat", async (req, res) => {
           role: "system",
           content: `
 You are MindCare.
-Be caring, mature, calm.
+
+Be caring.
+Be mature.
+Be natural.
 Use light Hinglish.
 No cringe.
 Short replies.
+Ask max 1 question.
 `
         },
 
@@ -487,7 +229,6 @@ Short replies.
 
 
     const reply = ai.choices[0].message.content.trim();
-
 
     user.history.push({
       role: "assistant",
@@ -506,16 +247,15 @@ Short replies.
 
   catch (err) {
 
-    console.log("🔥 ERROR:", err);
+    console.log("🔥 SERVER ERROR:", err);
 
     res.json({
-      reply: "Server thoda slow hai 😭 Try later"
+      reply: "Bhai thoda issue aa gaya 😭"
     });
   }
 });
 
-
-// ================= REMINDER SYSTEM =================
+// ================= REMINDER =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -523,7 +263,6 @@ cron.schedule("*/30 * * * * *", async () => {
 
     const db = loadDB();
     const now = Date.now();
-
 
     for (const token in db) {
 
@@ -533,11 +272,9 @@ cron.schedule("*/30 * * * * *", async () => {
 
         const diff = e.time - now;
 
-
-        // 5 min before
         if (diff <= 5 * 60000 && diff > 2 * 60000) {
 
-          const msg = `5 min left 😤💙 All the best!`;
+          const msg = "5 min left 😤💙 All the best!";
 
           await admin.messaging().send({
 
@@ -548,9 +285,8 @@ cron.schedule("*/30 * * * * *", async () => {
               body: msg
             },
 
-            data: {
-              message: msg
-            }
+            data: { message: msg }
+
           });
 
           e.notified = true;
@@ -565,7 +301,6 @@ cron.schedule("*/30 * * * * *", async () => {
     console.log("Reminder error:", err);
   }
 });
-
 
 // ================= START =================
 
