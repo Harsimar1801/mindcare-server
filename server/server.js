@@ -55,7 +55,7 @@ function saveDB(data) {
 
 // ================= HELPERS =================
 
-// Mood detector
+// Mood
 function detectMood(text) {
 
   text = text.toLowerCase();
@@ -63,13 +63,13 @@ function detectMood(text) {
   if (text.includes("sad") || text.includes("cry")) return "low";
   if (text.includes("scared") || text.includes("stress")) return "anxious";
   if (text.includes("happy") || text.includes("great")) return "high";
-  if (text.includes("tired") || text.includes("burnout")) return "tired";
+  if (text.includes("tired")) return "tired";
 
   return null;
 }
 
 
-// Name detector
+// Name
 function detectName(text) {
 
   const match = text.match(/my name is (\w+)/i);
@@ -80,9 +80,10 @@ function detectName(text) {
 }
 
 
-// ================= DATE PARSER =================
 
-async function parseDate(text) {
+// ================= AI EVENT DETECTOR =================
+
+async function detectEventAI(text) {
 
   try {
 
@@ -98,16 +99,15 @@ async function parseDate(text) {
         {
           role: "system",
           content: `
-Convert into JSON ONLY:
+Detect future event.
+
+Return ONLY JSON:
 
 {
- "date":"YYYY-MM-DD",
- "time":"HH:MM" or null
+  "hasEvent": true/false,
+  "title": "event name or null",
+  "description": "short desc or null"
 }
-
-Understand: tomorrow, in 5 min, next week, today evening.
-
-Only JSON.
 `
         },
         {
@@ -122,14 +122,17 @@ Only JSON.
   } catch {
 
     return {
-      date: null,
-      time: null
+      hasEvent: false,
+      title: null,
+      description: null
     };
   }
 }
 
 
-// ================= EVENT DETECTOR =================
+
+// ================= DATE PARSER =================
+
 async function parseDate(text) {
 
   try {
@@ -146,27 +149,17 @@ async function parseDate(text) {
         {
           role: "system",
           content: `
-Current date/time: ${now.toISOString()}
+Current time: ${now.toISOString()}
 
-Convert the user message into REAL JSON.
-
-Rules:
-- Calculate actual date
-- Calculate actual time in 24h format
-- Never use "HH:MM"
-
-Return ONLY JSON:
+Return REAL JSON:
 
 {
-  "date": "YYYY-MM-DD",
-  "time": "HH:MM"
+ "date":"YYYY-MM-DD",
+ "time":"HH:MM"
 }
 
-Example:
-"in 5 min" -> real time
-"tomorrow 9am" -> real time
-
-NO explanation.
+Calculate actual time.
+Never use HH:MM.
 `
         },
         {
@@ -176,26 +169,17 @@ NO explanation.
       ]
     });
 
-    const raw = res.choices[0].message.content;
+    const parsed = JSON.parse(res.choices[0].message.content);
 
-    const parsed = JSON.parse(raw);
-
-    // Safety check
-    if (
-      !parsed.time ||
-      parsed.time.includes("H") ||
-      parsed.time.includes("M")
-    ) {
-      throw new Error("Invalid time");
+    if (!parsed.time || parsed.time.includes("H")) {
+      throw new Error("Bad time");
     }
 
     return parsed;
 
-  } catch (err) {
+  } catch {
 
-    console.log("⚠️ Date parse failed, using fallback");
-
-    // Fallback: 10 min later
+    // fallback → 10 min later
     const d = new Date(Date.now() + 10 * 60000);
 
     return {
@@ -216,7 +200,7 @@ app.post("/chat", async (req, res) => {
     const { message, fcmToken } = req.body;
 
     if (!message || !fcmToken) {
-      return res.json({ reply: "Bro 😭 say something na 💙" });
+      return res.json({ reply: "Bro 😭 say something 💙" });
     }
 
 
@@ -236,9 +220,7 @@ app.post("/chat", async (req, res) => {
         },
 
         events: [],
-
         history: [],
-
         waitingFor: null
       };
     }
@@ -248,8 +230,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= SAVE USER MSG =================
-
+    // Save msg
     user.history.push({
       role: "user",
       content: message
@@ -259,8 +240,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= MOOD =================
-
+    // Mood
     const mood = detectMood(message);
 
     if (mood) {
@@ -282,26 +262,17 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= NAME =================
-
+    // Name
     const name = detectName(message);
 
     if (name) user.profile.name = name;
 
 
 
-    // ================= WAITING FOR DATE =================
-
+    // Waiting for time
     if (user.waitingFor) {
 
       const parsed = await parseDate(message);
-
-      if (!parsed.date) {
-
-        return res.json({
-          reply: "Bro 😅 date samajh nahi aayi, thoda clearly bol na 💙"
-        });
-      }
 
       const event = {
         title: user.waitingFor.title,
@@ -318,61 +289,49 @@ app.post("/chat", async (req, res) => {
       saveDB(db);
 
       return res.json({
-        reply: `Saved 😤🔥 "${event.title}" on ${event.date} 💙`
+        reply: `Saved 😤🔥 ${event.title} at ${event.time} 💙`
       });
     }
 
 
 
-    // ================= EVENT DETECT =================
+    // Event detect
+    const aiEvent = await detectEventAI(message);
 
- // ================= EVENT DETECT =================
+    if (aiEvent.hasEvent && !user.waitingFor) {
 
-const aiEvent = await detectEventAI(message);
+      const parsed = await parseDate(message);
 
-if (aiEvent.hasEvent && !user.waitingFor) {
+      if (parsed.date) {
 
-  // Try parsing date from SAME message
-  const parsed = await parseDate(message);
+        user.events.push({
+          title: aiEvent.title,
+          description: aiEvent.description,
+          date: parsed.date,
+          time: parsed.time,
+          notified: {}
+        });
 
-  // If AI understood time → save directly
-  if (parsed.date) {
+        saveDB(db);
 
-    const event = {
-      title: aiEvent.title,
-      description: aiEvent.description,
-      date: parsed.date,
-      time: parsed.time,
-      notified: {}
-    };
+        return res.json({
+          reply: `Got you 😤🔥 ${aiEvent.title} at ${parsed.time} 💙`
+        });
+      }
 
-    user.events.push(event);
+      user.waitingFor = aiEvent;
 
-    saveDB(db);
+      saveDB(db);
 
-    return res.json({
-      reply: `Got you 😤🔥 "${event.title}" in ${parsed.time || "some time"} 💙 Stay strong`
-    });
-  }
-
-  // Else ask user
-  user.waitingFor = {
-    title: aiEvent.title,
-    description: aiEvent.description
-  };
-
-  saveDB(db);
-
-  return res.json({
-    reply: `Ohhh 😭💙 when is "${aiEvent.title}"? Date + time bro 🔥`
-  });
-}
+      return res.json({
+        reply: `When is "${aiEvent.title}"? ⏰💙`
+      });
+    }
 
 
 
-    // ================= MAIN AI =================
-
-    let reply = "Bro 😭 something broke";
+    // Main AI
+    let reply = "Bro 😭 error";
 
     try {
 
@@ -389,17 +348,13 @@ if (aiEvent.hasEvent && !user.waitingFor) {
           {
             role: "system",
             content: `
-You are MindCare, Harsimar's real best friend.
+You are Harsimar's close friend.
 
 Profile:
 ${JSON.stringify(user.profile)}
 
-Rules:
-- Be consistent
-- Remember past chats
-- Be emotional
-- Use emojis 😤💙🔥
-- No robotic tone
+Be emotional. Remember past.
+Use emojis.
 `
           },
 
@@ -411,13 +366,12 @@ Rules:
 
     } catch {
 
-      reply = "Bro 😭 brain lag. Try again 💙";
+      reply = "Bro 😭 brain lag 💙";
     }
 
 
 
-    // ================= SAVE BOT =================
-
+    // Save bot
     user.history.push({
       role: "assistant",
       content: reply
@@ -434,46 +388,14 @@ Rules:
     console.log("🔥 CHAT ERROR:", err);
 
     res.json({
-      reply: "Bro 😭 server thak gaya. Try again 💙"
+      reply: "Bro 😭 server tired 💙"
     });
   }
 });
 
 
 
-// ================= MANUAL PUSH =================
-
-app.post("/push-now", async (req, res) => {
-
-  try {
-
-    const { token, title, body } = req.body;
-
-    if (!token) return res.status(400).json({ error: "Token missing" });
-
-    await admin.messaging().send({
-
-      token,
-
-      notification: {
-        title: title || "🧠 MindCare",
-        body: body || "Hey bro 💙"
-      }
-    });
-
-    res.json({ success: true });
-
-  } catch (err) {
-
-    console.log("Push error:", err);
-
-    res.status(500).json({ error: "Push failed 😭" });
-  }
-});
-
-
-
-// ================= SMART REMINDERS =================
+// ================= SMART REMINDER =================
 
 cron.schedule("* * * * *", async () => {
 
@@ -493,26 +415,7 @@ cron.schedule("* * * * *", async () => {
 
 
         if (!e.notified) {
-          e.notified = {
-            hour: false,
-            five: false,
-            after: false
-          };
-        }
-
-
-        // 1 hour before
-        if (diff <= 3600000 && diff > 3540000 && !e.notified.hour) {
-
-          await admin.messaging().send({
-            token,
-            notification: {
-              title: "⏰ Get Ready",
-              body: `1 hour left for ${e.title} 😤💙`
-            }
-          });
-
-          e.notified.hour = true;
+          e.notified = { hour:false, five:false, after:false };
         }
 
 
@@ -523,7 +426,7 @@ cron.schedule("* * * * *", async () => {
             token,
             notification: {
               title: "🔥 You Got This",
-              body: `5 min left 😤💙 Go kill it`
+              body: `5 min left for ${e.title} 💙😤`
             }
           });
 
