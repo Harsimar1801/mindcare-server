@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>Your Mood</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="home-body">
+
+  <div class="home">
+
+    <h1>How are you feeling?</h1>
+
+    <p class="tagline">
+      Describe yourself in ONE word 💙
+    </p>
+
+    <input
+      type="text"
+      id="moodInput"
+      placeholder="happy / tired / stressed..."
+      class="mood-input"
+    >
+
+    <button class="start-btn" onclick="saveMood()">
+      Continue 🚀
+    </button>
+
+  </div>
+
+
+<script>
+
+async function saveMood(){
+
+  const input =
+    document.getElementById("moodInput");
+
+  const word = input.value.trim();
+
+  if(!word){
+    alert("Type something bro 😅");
+    return;
+  }
+
+
+  try{
+
+    const res = await fetch("/analyze-mood", {
+
+      method: "POST",
+
+      headers: {
+        "Content-Type":"application/json"
+      },
+
+      body: JSON.stringify({
+        text: word
+      })
+
+    });
+
+
+    const data = await res.json();
+
+    // Save detected mood
+    localStorage.setItem("userMood", data.mood);
+
+    location.href = "chat.html";
+
+
+  }catch{
+
+    // fallback
+    localStorage.setItem("userMood","neutral");
+    location.href = "chat.html";
+  }
+
+}
+
+</script>
+
+</body>
+</html>

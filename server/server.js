@@ -68,7 +68,7 @@ function formatTime(ts) {
 
 
 
-// ================= DATE PARSER (HYBRID) =================
+// ================= DATE PARSER =================
 
 async function parseDate(text) {
 
@@ -76,8 +76,7 @@ async function parseDate(text) {
   const lower = text.toLowerCase();
 
 
-  // ===== MANUAL "X MIN" PARSE =====
-
+  // Manual "X min" parse
   const minMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
 
   if (minMatch) {
@@ -85,9 +84,6 @@ async function parseDate(text) {
     const mins = parseInt(minMatch[1]);
 
     if (!isNaN(mins)) {
-
-      console.log("⏱ Manual minute parse:", mins);
-
       return {
         timestamp: now + mins * 60 * 1000
       };
@@ -95,8 +91,7 @@ async function parseDate(text) {
   }
 
 
-  // ===== AI FALLBACK =====
-
+  // AI fallback
   try {
 
     const res = await groq.chat.completions.create({
@@ -137,8 +132,6 @@ Never return past time.
     return parsed;
 
   } catch {
-
-    console.log("⚠️ AI time failed → fallback +5min");
 
     return {
       timestamp: now + 5 * 60 * 1000
@@ -191,6 +184,74 @@ Return ONLY JSON:
 
 
 
+// =================================================
+// ✅ MOOD ANALYZER API (NEW FEATURE)
+// =================================================
+
+app.post("/analyze-mood", async (req, res) => {
+
+  try {
+
+    const { text } = req.body;
+
+    if (!text) {
+      return res.json({ mood: "neutral" });
+    }
+
+    const ai = await groq.chat.completions.create({
+
+      model: "llama-3.1-8b-instant",
+      temperature: 0,
+
+      messages: [
+
+        {
+          role: "system",
+          content: `
+Classify this into ONE mood:
+
+happy
+sad
+anxious
+calm
+tired
+excited
+neutral
+
+Return ONLY the word.
+`
+        },
+
+        {
+          role: "user",
+          content: text
+        }
+
+      ]
+
+    });
+
+
+    const mood =
+      ai.choices[0].message.content
+        .trim()
+        .toLowerCase();
+
+
+    res.json({ mood });
+
+
+  } catch (err) {
+
+    console.log("Mood AI error:", err);
+
+    res.json({ mood: "neutral" });
+  }
+
+});
+
+
+
 // ================= CHAT =================
 
 app.post("/chat", async (req, res) => {
@@ -207,7 +268,6 @@ app.post("/chat", async (req, res) => {
     let db = loadDB();
 
 
-    // Create user
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
@@ -225,8 +285,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ===== SAVE HISTORY =====
-
+    // Save history
     user.history.push({
       role: "user",
       content: message
@@ -236,8 +295,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ===== WAITING MODE =====
-
+    // Waiting mode
     if (user.waitingFor) {
 
       const parsed = await parseDate(message);
@@ -264,8 +322,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ===== EVENT DETECT =====
-
+    // Event detect
     const aiEvent = await detectEventAI(message);
 
     if (aiEvent.hasEvent && !user.waitingFor) {
@@ -303,8 +360,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ===== MAIN AI =====
-
+    // Main AI
     const chatAI = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
@@ -321,6 +377,8 @@ Talk like a real college best friend.
 Use Hinglish sometimes.
 No robotic tone.
 Supportive + funny.
+Keep replies short.
+Max 2 questions.
 `
         },
 
@@ -356,7 +414,6 @@ Supportive + funny.
 
 // ================= REMINDER SYSTEM =================
 
-// Every 30 seconds
 cron.schedule("*/30 * * * * *", async () => {
 
   try {
@@ -374,8 +431,7 @@ cron.schedule("*/30 * * * * *", async () => {
         const diff = e.timestamp - now;
 
 
-
-        // ===== 5 MIN BEFORE =====
+        // 5 min before
         if (
           diff <= 5 * 60 * 1000 &&
           diff > 3 * 60 * 1000 &&
@@ -396,8 +452,7 @@ cron.schedule("*/30 * * * * *", async () => {
         }
 
 
-
-        // ===== AFTER EVENT =====
+        // After
         if (
           diff <= -2 * 60 * 1000 &&
           !e.notified.after

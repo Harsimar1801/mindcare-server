@@ -1,3 +1,47 @@
+// ================= AUTO THEME FROM MOOD =================
+
+(function(){
+
+  const mood = localStorage.getItem("userMood");
+
+  if(!mood) return;
+
+  const app = document.querySelector(".app");
+  const header = document.querySelector(".header");
+  const sendBtn = document.querySelector(".send-btn");
+
+  const themes = {
+
+    happy: "#FFD93D",
+    calm: "#4D96FF",
+    sad: "#6C63FF",
+    anxious: "#FF6B6B",
+    stressed: "#FF884B",
+    tired: "#888888",
+    lonely: "#845EC2",
+    excited: "#00C9A7"
+  };
+
+  const color = themes[mood] || "#6C63FF"; // default
+
+
+  function adjust(hex, amt){
+
+    let num = parseInt(hex.replace("#",""),16);
+
+    let r = Math.min(255, Math.max(0,(num>>16)+amt));
+    let g = Math.min(255, Math.max(0,((num>>8)&255)+amt));
+    let b = Math.min(255, Math.max(0,(num&255)+amt));
+
+    return `rgb(${r},${g},${b})`;
+  }
+
+
+  app.style.background = adjust(color,40);
+  header.style.background = adjust(color,-25);
+  sendBtn.style.background = adjust(color,-10);
+
+})();
 // ================= TOKEN =================
 
 function setFCMToken(token) {
