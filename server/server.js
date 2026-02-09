@@ -67,6 +67,7 @@ function saveDB(data) {
 
 function formatTime(ts) {
   return new Date(ts).toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -153,7 +154,7 @@ app.post("/chat", async (req, res) => {
 
   try {
 
-    const { message, fcmToken, language } = req.body; // ✅ GET LANGUAGE
+    const { message, fcmToken, language } = req.body;
 
     if (!message || !fcmToken) {
       return res.json({ reply: "Bhai kuch likh toh sahi 💙" });
@@ -169,10 +170,11 @@ app.post("/chat", async (req, res) => {
       db[fcmToken] = {
         profile: {
           mood: null,
-          language: "hinglish" // ✅ DEFAULT
+          language: "hinglish"
         },
         history: [],
-        events: []
+        events: [],
+        lastCheckIn: 0
       };
     }
 
@@ -187,13 +189,14 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // Save user msg
+    // Save user msg (WITH TIME)
     user.history.push({
       role: "user",
-      content: message
+      content: message,
+      time: Date.now()
     });
 
-    if (user.history.length > 20) user.history.shift();
+    if (user.history.length > 30) user.history.shift();
 
 
 
@@ -209,7 +212,8 @@ app.post("/chat", async (req, res) => {
 
       user.history.push({
         role: "assistant",
-        content: reply
+        content: reply,
+        time: Date.now()
       });
 
       saveDB(db);
@@ -238,7 +242,8 @@ app.post("/chat", async (req, res) => {
 
       user.history.push({
         role: "assistant",
-        content: reply
+        content: reply,
+        time: Date.now()
       });
 
       saveDB(db);
@@ -266,25 +271,20 @@ User language: ${user.profile.language}
 
 Rules:
 
-If language is "english":
-→ Reply ONLY in English.
-
-If language is "hinglish":
-→ Use Hindi + English mix.
-
-If language is "hindi":
-→ Reply ONLY in Hindi (Devanagari).
+If language is "english": English only
+If language is "hinglish": Mix Hindi + English
+If language is "hindi": Hindi only
 
 Be caring.
-Be mature.
-Be natural.
-No cringe.
 Short replies.
 Ask max 1 question.
 `
         },
 
-        ...user.history
+        ...user.history.map(h => ({
+          role: h.role,
+          content: h.content
+        }))
       ]
     });
 
@@ -294,7 +294,8 @@ Ask max 1 question.
 
     user.history.push({
       role: "assistant",
-      content: reply
+      content: reply,
+      time: Date.now()
     });
 
     saveDB(db);
@@ -342,7 +343,7 @@ app.get("/history/:token", (req, res) => {
 
 
 
-// ================= REMINDER =================
+// ================= REMINDER + CHECK-IN =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -357,6 +358,31 @@ cron.schedule("*/30 * * * * *", async () => {
       const user = db[token];
 
       if (!user.events || !user.history) continue;
+
+
+
+      // ✅ CHECK-IN EVERY 6 HOURS
+      if (!user.lastCheckIn || now - user.lastCheckIn > 6 * 60 * 60 * 1000) {
+
+        const msg = "Hey bro 👋 sab theek hai? Kya chal raha?";
+
+        user.history.push({
+          role: "assistant",
+          content: msg,
+          time: Date.now()
+        });
+
+        await admin.messaging().send({
+          token,
+          notification: {
+            title: "💙 MindCare",
+            body: msg
+          }
+        });
+
+        user.lastCheckIn = now;
+      }
+
 
 
       for (const e of user.events) {
@@ -375,21 +401,16 @@ cron.schedule("*/30 * * * * *", async () => {
 
           user.history.push({
             role: "assistant",
-            content: msg
+            content: msg,
+            time: Date.now()
           });
 
-
           await admin.messaging().send({
-
             token,
-
             notification: {
               title: "🔥 You Got This",
               body: msg
-            },
-
-            data: { message: msg }
-
+            }
           });
 
           e.notified.before = true;
@@ -406,21 +427,16 @@ cron.schedule("*/30 * * * * *", async () => {
 
           user.history.push({
             role: "assistant",
-            content: msg
+            content: msg,
+            time: Date.now()
           });
 
-
           await admin.messaging().send({
-
             token,
-
             notification: {
               title: "💙 Proud of You",
               body: msg
-            },
-
-            data: { message: msg }
-
+            }
           });
 
           e.notified.after = true;

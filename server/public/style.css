@@ -481,10 +481,13 @@ margin-left: -50%;
 .palette {
   display: flex;
   align-items: center;
+  margin-left: -20px;
+  border-left: 50px;
+
 }
 
 .color-wheel {
-
+margin-left: -20px;
   width: 26px;
   height: 26px;
 
@@ -813,7 +816,7 @@ margin-left: -50%;
 /* Arrow */
 .abc {
   position: relative;
-  margin-left: -10px;
+  margin-left: -65px;
   padding-right: 5px;
 }
 
