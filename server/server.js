@@ -127,108 +127,17 @@ async function parseDate(text) {
   const now = Date.now();
   const lower = text.toLowerCase();
 
-
-  // Manual minutes
   const minMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
 
   if (minMatch) {
-
-    const mins = parseInt(minMatch[1]);
-
-    if (!isNaN(mins)) {
-      return {
-        timestamp: now + mins * 60 * 1000
-      };
-    }
-  }
-
-
-  // AI fallback
-  try {
-
-    const res = await groq.chat.completions.create({
-
-      model: "llama-3.1-8b-instant",
-      temperature: 0,
-
-      messages: [
-        {
-          role: "system",
-          content: `
-Current timestamp: ${now}
-
-Convert to FUTURE timestamp.
-
-Return JSON:
-
-{
- "timestamp": number
-}
-`
-        },
-        {
-          role: "user",
-          content: text
-        }
-      ]
-    });
-
-    const parsed = JSON.parse(res.choices[0].message.content);
-
-    if (!parsed.timestamp || parsed.timestamp <= now) {
-      throw new Error("Bad time");
-    }
-
-    return parsed;
-
-  } catch {
-
     return {
-      timestamp: now + 5 * 60 * 1000
+      timestamp: now + parseInt(minMatch[1]) * 60000
     };
   }
-}
 
-
-
-// ================= EVENT AI =================
-
-async function detectEventAI(text) {
-
-  try {
-
-    const res = await groq.chat.completions.create({
-
-      model: "llama-3.1-8b-instant",
-      temperature: 0,
-
-      messages: [
-        {
-          role: "system",
-          content: `
-Detect future event.
-
-Return JSON:
-
-{
- "hasEvent": true/false,
- "title": "event name"
-}
-`
-        },
-        {
-          role: "user",
-          content: text
-        }
-      ]
-    });
-
-    return JSON.parse(res.choices[0].message.content);
-
-  } catch {
-
-    return { hasEvent: false };
-  }
+  return {
+    timestamp: now + 5 * 60000
+  };
 }
 
 
@@ -252,7 +161,6 @@ app.post("/chat", async (req, res) => {
     let db = loadDB();
 
 
-    // Create user
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
@@ -260,8 +168,7 @@ app.post("/chat", async (req, res) => {
           mood: null
         },
         events: [],
-        history: [],
-        waitingFor: null
+        history: []
       };
     }
 
@@ -270,7 +177,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= SAVE USER MSG =================
+    // ================= SAVE HISTORY =================
 
     user.history.push({
       role: "user",
@@ -281,16 +188,14 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= MOOD CHECK (FINAL FIX) =================
+    // ================= MOOD CHECK =================
 
     const mood = detectMood(message);
 
     if (mood) {
 
-      if (user.profile.mood !== mood) {
-        user.profile.mood = mood;
-        saveDB(db);
-      }
+      user.profile.mood = mood;
+      saveDB(db);
 
       if (moodReplies[mood]) {
 
@@ -299,70 +204,6 @@ app.post("/chat", async (req, res) => {
           mood: mood
         });
       }
-    }
-
-
-
-    // ================= WAITING MODE =================
-
-    if (user.waitingFor) {
-
-      const parsed = await parseDate(message);
-
-      const event = {
-        title: user.waitingFor.title,
-        timestamp: parsed.timestamp,
-        notified: { five:false, after:false }
-      };
-
-      user.events.push(event);
-
-      user.waitingFor = null;
-
-      saveDB(db);
-
-      return res.json({
-        reply: `Saved 😤🔥 ${event.title} at ${formatTime(event.timestamp)} 💙`,
-        mood: user.profile.mood
-      });
-    }
-
-
-
-    // ================= EVENT DETECT =================
-
-    const aiEvent = await detectEventAI(message);
-
-    if (aiEvent.hasEvent && !user.waitingFor) {
-
-      const parsed = await parseDate(message);
-
-      if (parsed.timestamp) {
-
-        const event = {
-          title: aiEvent.title,
-          timestamp: parsed.timestamp,
-          notified: { five:false, after:false }
-        };
-
-        user.events.push(event);
-
-        saveDB(db);
-
-        return res.json({
-          reply: `Got you 😤🔥 ${aiEvent.title} at ${formatTime(event.timestamp)} 💙`,
-          mood: user.profile.mood
-        });
-      }
-
-      user.waitingFor = aiEvent;
-
-      saveDB(db);
-
-      return res.json({
-        reply: `Kab hai "${aiEvent.title}"? ⏰💙`,
-        mood: user.profile.mood
-      });
     }
 
 
@@ -380,13 +221,11 @@ app.post("/chat", async (req, res) => {
           role: "system",
           content: `
 You are MindCare.
-
 Talk like best friend.
 Use Hinglish.
-Supportive + funny.
-No robotic tone.
+Supportive.
+Short replies.
 Max 2 questions.
-Keep short.
 `
         },
 
@@ -414,102 +253,12 @@ Keep short.
 
   } catch (err) {
 
-    console.log("🔥 CHAT ERROR:", err);
+    console.log("🔥 ERROR:", err);
 
     res.json({
-      reply: "Bro 😭 server lag gaya 💙",
+      reply: "Bro 😭 server down",
       mood: null
     });
-  }
-});
-
-
-
-// ================= REMINDER SYSTEM =================
-
-cron.schedule("*/30 * * * * *", async () => {
-
-  try {
-
-    const db = loadDB();
-    const now = Date.now();
-
-
-    for (const token in db) {
-
-      for (const e of db[token].events) {
-
-        if (!e.timestamp) continue;
-
-        const diff = e.timestamp - now;
-
-
-
-        // 5 MIN BEFORE
-        if (
-          diff <= 5 * 60 * 1000 &&
-          diff > 3 * 60 * 1000 &&
-          !e.notified.five
-        ) {
-
-          const msg = `5 min left for ${e.title} 😤💙`;
-
-          await admin.messaging().send({
-
-            token,
-
-            notification: {
-              title: "🔥 You Got This",
-              body: msg
-            },
-
-            data: {
-              message: msg,
-              open: "chat"
-            }
-
-          });
-
-          e.notified.five = true;
-        }
-
-
-
-        // AFTER
-        if (
-          diff <= -2 * 60 * 1000 &&
-          !e.notified.after
-        ) {
-
-          const msg = `Kaisa gaya ${e.title}? 🤗`;
-
-          await admin.messaging().send({
-
-            token,
-
-            notification: {
-              title: "💙 Proud of You",
-              body: msg
-            },
-
-            data: {
-              message: msg,
-              open: "chat"
-            }
-
-          });
-
-          e.notified.after = true;
-        }
-
-      }
-    }
-
-    saveDB(db);
-
-  } catch (err) {
-
-    console.log("Reminder error:", err);
   }
 });
 
