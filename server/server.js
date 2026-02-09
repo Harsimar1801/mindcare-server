@@ -8,6 +8,7 @@ const cron = require("node-cron");
 const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
 
+
 // ================= FIREBASE =================
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -21,6 +22,7 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
+
 // ================= APP =================
 
 const app = express();
@@ -28,6 +30,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+
 
 // ================= GROQ =================
 
@@ -39,6 +42,7 @@ if (!process.env.GROQ_API_KEY) {
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
+
 
 // ================= FILE DB =================
 
@@ -53,6 +57,7 @@ function saveDB(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
+
 // ================= HELPERS =================
 
 function formatTime(ts) {
@@ -65,7 +70,8 @@ function formatTime(ts) {
   });
 }
 
-// ================= MOOD DETECTOR =================
+
+// ================= MOOD =================
 
 function detectMood(text) {
 
@@ -79,6 +85,7 @@ function detectMood(text) {
 
   return null;
 }
+
 
 // ================= MOOD REPLIES =================
 
@@ -114,6 +121,7 @@ function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+
 // ================= TIME PARSER =================
 
 function parseDate(text) {
@@ -124,6 +132,7 @@ function parseDate(text) {
 
   return Date.now() + parseInt(match[1]) * 60000;
 }
+
 
 // ================= CHAT =================
 
@@ -141,6 +150,7 @@ app.post("/chat", async (req, res) => {
 
     let db = loadDB();
 
+
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
@@ -152,7 +162,8 @@ app.post("/chat", async (req, res) => {
 
     const user = db[fcmToken];
 
-    // Save user message
+
+    // Save user msg
     user.history.push({
       role: "user",
       content: message
@@ -186,7 +197,10 @@ app.post("/chat", async (req, res) => {
       user.events.push({
         title: "Exam",
         time,
-        notified: false
+        notified: {
+          before: false,
+          after: false
+        }
       });
 
       saveDB(db);
@@ -203,7 +217,6 @@ app.post("/chat", async (req, res) => {
     const ai = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
-
       temperature: 0.6,
 
       messages: [
@@ -230,6 +243,7 @@ Ask max 1 question.
 
     const reply = ai.choices[0].message.content.trim();
 
+
     user.history.push({
       role: "assistant",
       content: reply
@@ -255,7 +269,8 @@ Ask max 1 question.
   }
 });
 
-// ================= REMINDER =================
+
+// ================= REMINDER SYSTEM =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -264,15 +279,20 @@ cron.schedule("*/30 * * * * *", async () => {
     const db = loadDB();
     const now = Date.now();
 
+
     for (const token in db) {
 
       for (const e of db[token].events) {
 
-        if (e.notified) continue;
-
         const diff = e.time - now;
 
-        if (diff <= 5 * 60000 && diff > 2 * 60000) {
+
+        // ===== 5 MIN BEFORE =====
+        if (
+          diff <= 5 * 60000 &&
+          diff > 2 * 60000 &&
+          !e.notified.before
+        ) {
 
           const msg = "5 min left 😤💙 All the best!";
 
@@ -282,17 +302,47 @@ cron.schedule("*/30 * * * * *", async () => {
 
             notification: {
               title: "🔥 You Got This",
-              body: msg
+              body: msg,
+              click_action: "FLUTTER_NOTIFICATION_CLICK"
             },
 
-         data: {
-  message: msg,
-  url: "/chat.html?msg=" + encodeURIComponent(msg)
-}
+            data: {
+              msg: msg,
+              url: "/chat.html?msg=" + encodeURIComponent(msg)
+            }
 
           });
 
-          e.notified = true;
+          e.notified.before = true;
+        }
+
+
+        // ===== AFTER EXAM =====
+        if (
+          diff <= -2 * 60000 &&
+          !e.notified.after
+        ) {
+
+          const msg = "Kaisa gaya exam? 🤗 Bata na";
+
+          await admin.messaging().send({
+
+            token,
+
+            notification: {
+              title: "💙 Proud of You",
+              body: msg,
+              click_action: "FLUTTER_NOTIFICATION_CLICK"
+            },
+
+            data: {
+              msg: msg,
+              url: "/chat.html?msg=" + encodeURIComponent(msg)
+            }
+
+          });
+
+          e.notified.after = true;
         }
       }
     }
@@ -304,6 +354,7 @@ cron.schedule("*/30 * * * * *", async () => {
     console.log("Reminder error:", err);
   }
 });
+
 
 // ================= START =================
 

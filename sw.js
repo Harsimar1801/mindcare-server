@@ -1,43 +1,4 @@
-self.addEventListener("install", e => {
-  e.waitUntil(
-    caches.open("mindcare").then(cache => {
-      return cache.addAll([
-        "/",
-        "/index.html",
-        "/style.css",
-        "/script.js"
-      ]);
-    })
-  );
-});
-self.addEventListener("install", () => {
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", () => {
-  clients.claim();
-});
-
-
-// 🔔 Handle notification click
-self.addEventListener("notificationclick", event => {
-
-  event.notification.close();
-
-  const msg = event.notification.data?.message || "";
-
-  const url = msg
-    ? `/chat.html?msg=${encodeURIComponent(msg)}`
-    : "/chat.html";
-
-  event.waitUntil(
-    clients.openWindow(url)
-  );
-});
-
-
-// 🔔 Background notification
-self.addEventListener("push", event => {
+self.addEventListener("push", function (event) {
 
   let data = {};
 
@@ -46,13 +7,38 @@ self.addEventListener("push", event => {
   }
 
   const title = data.notification?.title || "MindCare 💙";
-  const body = data.notification?.body || "Hey bro 😄";
+  const body = data.notification?.body || "Hey bro!";
+  const msg = data.data?.msg || body;
+
+  const options = {
+    body: body,
+    icon: "/icon.png",
+
+    data: {
+      msg: msg // ⭐ VERY IMPORTANT
+    }
+  };
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      data: data.data || {},
-      icon: "/icon.png"
-    })
+    self.registration.showNotification(title, options)
+  );
+});
+
+
+self.addEventListener("notificationclick", function (event) {
+
+  event.notification.close();
+
+  const msg = event.notification.data?.msg;
+
+  let url = "/chat.html";
+
+  // Attach message
+  if (msg) {
+    url += "?msg=" + encodeURIComponent(msg);
+  }
+
+  event.waitUntil(
+    clients.openWindow(url)
   );
 });
