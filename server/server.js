@@ -130,10 +130,11 @@ Only JSON.
 
 
 // ================= EVENT DETECTOR =================
-
-async function detectEventAI(text) {
+async function parseDate(text) {
 
   try {
+
+    const now = new Date();
 
     const res = await groq.chat.completions.create({
 
@@ -141,21 +142,31 @@ async function detectEventAI(text) {
 
       temperature: 0,
 
-      max_tokens: 100,
-
       messages: [
         {
           role: "system",
           content: `
-Detect if user mentions ANY upcoming activity.
+Current date/time: ${now.toISOString()}
 
-Return JSON ONLY:
+Convert the user message into REAL JSON.
+
+Rules:
+- Calculate actual date
+- Calculate actual time in 24h format
+- Never use "HH:MM"
+
+Return ONLY JSON:
 
 {
- "hasEvent": true/false,
- "title": "short name or null",
- "description": "short desc or null"
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM"
 }
+
+Example:
+"in 5 min" -> real time
+"tomorrow 9am" -> real time
+
+NO explanation.
 `
         },
         {
@@ -165,14 +176,31 @@ Return JSON ONLY:
       ]
     });
 
-    return JSON.parse(res.choices[0].message.content);
+    const raw = res.choices[0].message.content;
 
-  } catch {
+    const parsed = JSON.parse(raw);
+
+    // Safety check
+    if (
+      !parsed.time ||
+      parsed.time.includes("H") ||
+      parsed.time.includes("M")
+    ) {
+      throw new Error("Invalid time");
+    }
+
+    return parsed;
+
+  } catch (err) {
+
+    console.log("⚠️ Date parse failed, using fallback");
+
+    // Fallback: 10 min later
+    const d = new Date(Date.now() + 10 * 60000);
 
     return {
-      hasEvent: false,
-      title: null,
-      description: null
+      date: d.toISOString().slice(0, 10),
+      time: d.toTimeString().slice(0, 5)
     };
   }
 }
