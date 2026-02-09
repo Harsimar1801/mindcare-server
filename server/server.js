@@ -285,7 +285,10 @@ cron.schedule("*/30 * * * * *", async () => {
               body: msg
             },
 
-            data: { message: msg }
+         data: {
+  message: msg,
+  url: "/chat.html?msg=" + encodeURIComponent(msg)
+}
 
           });
 

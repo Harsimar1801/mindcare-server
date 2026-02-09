@@ -114,74 +114,28 @@ loadChat();
 
 
 // =======================================
-// 🔔 NOTIFICATION → AUTO CHAT SYSTEM
+// 🔔 NOTIFICATION → AUTO CHAT (FIXED)
 // =======================================
 
-async function handleNotificationAutoChat() {
+(function () {
 
-  // From URL
   const params = new URLSearchParams(window.location.search);
-  let notif = params.get("msg");
-
-  // Or from storage
-  if (!notif) {
-    notif = localStorage.getItem("notifMessage");
-  }
+  const notif = params.get("msg");
 
   if (!notif) return;
 
   const clean = decodeURIComponent(notif);
 
-  // Remove so it doesn't repeat
-  localStorage.removeItem("notifMessage");
-  window.history.replaceState({}, document.title, "/chat.html");
-
-  // Show bot message
+  // Show as bot message
   addMessage("MindCare: " + clean, "bot");
 
-  // Auto-send to server
-  try {
+  // Save chat
+  saveChat();
 
-    const token = localStorage.getItem("fcmToken");
+  // Remove msg from URL
+  window.history.replaceState({}, document.title, "/chat.html");
 
-    const res = await fetch("/chat", {
-
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json"
-      },
-
-      body: JSON.stringify({
-        message: clean,
-        fcmToken: token
-      })
-    });
-
-    const data = await res.json();
-
-    // Show AI reply
-    addMessage("MindCare: " + data.reply, "bot");
-
-    // Apply mood if exists
-    if (data.mood) {
-
-      localStorage.setItem("userMood", data.mood);
-
-      if (moodThemes[data.mood]) {
-        applyTheme(moodThemes[data.mood]);
-      }
-    }
-
-  } catch (err) {
-
-    console.log("Auto chat error:", err);
-  }
-}
-
-
-// Run when page loads
-window.addEventListener("load", handleNotificationAutoChat);
+})();
 
 
 
@@ -332,6 +286,7 @@ function applyTheme(baseHex) {
   const darkMode = bright < 135;
 
 
+  // App background
   app.style.background = `
     linear-gradient(
       135deg,
@@ -341,14 +296,17 @@ function applyTheme(baseHex) {
   `;
 
 
+  // Header
   header.style.background =
     `rgba(${soft.r},${soft.g},${soft.b},0.45)`;
 
 
+  // Input area
   inputBox.style.background =
     `rgba(${soft.r},${soft.g},${soft.b},0.25)`;
 
 
+  // Button
   sendBtn.style.background =
     `rgb(${soft.r - 10},${soft.g - 10},${soft.b - 10})`;
 
