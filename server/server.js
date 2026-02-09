@@ -139,9 +139,32 @@ Return ONLY JSON:
 
 async function parseDate(text) {
 
-  try {
+  const now = Date.now();
+  const lower = text.toLowerCase();
 
-    const now = Date.now();
+  // ================= MANUAL MINUTE PARSE =================
+
+  // Matches: in 5 min, after 10 minutes, 6 min
+  const minMatch = lower.match(/(\d+)\s*(min|mins|minute|minutes)/);
+
+  if (minMatch) {
+
+    const mins = parseInt(minMatch[1]);
+
+    if (!isNaN(mins)) {
+
+      console.log("⏱ Manual minute parse:", mins);
+
+      return {
+        timestamp: now + mins * 60 * 1000
+      };
+    }
+  }
+
+
+  // ================= AI FALLBACK =================
+
+  try {
 
     const res = await groq.chat.completions.create({
 
@@ -157,16 +180,13 @@ Current timestamp: ${now}
 
 Convert user message to FUTURE timestamp.
 
-Rules:
-- Always future time
-- "in 5 min" = now+5min
-- "tomorrow 9am" = correct
-
 Return ONLY JSON:
 
 {
  "timestamp": number
 }
+
+Never return past time.
 `
         },
         {
@@ -179,17 +199,17 @@ Return ONLY JSON:
     const parsed = JSON.parse(res.choices[0].message.content);
 
     if (!parsed.timestamp || parsed.timestamp <= now) {
-      throw new Error("Invalid time");
+      throw new Error("Bad time");
     }
 
     return parsed;
 
   } catch {
 
-    console.log("⚠️ Time parse fallback");
+    console.log("⚠️ AI time failed, fallback +5min");
 
     return {
-      timestamp: Date.now() + 5 * 60 * 1000
+      timestamp: now + 5 * 60 * 1000
     };
   }
 }
