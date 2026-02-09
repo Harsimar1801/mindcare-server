@@ -8,6 +8,7 @@ const cron = require("node-cron");
 const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
 
+
 // ================= FIREBASE =================
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -21,6 +22,7 @@ admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
+
 // ================= APP =================
 
 const app = express();
@@ -29,11 +31,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+
 // ================= GROQ =================
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
+
 
 // ================= FILE DB =================
 
@@ -48,8 +52,10 @@ function saveDB(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
+
 // ================= HELPERS =================
 
+// Format time in IST
 function formatTime(ts) {
   return new Date(ts).toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
@@ -61,7 +67,10 @@ function formatTime(ts) {
   });
 }
 
+
+// Mood detector
 function detectMood(text) {
+
   text = text.toLowerCase();
 
   if (text.includes("sad") || text.includes("cry")) return "low";
@@ -72,26 +81,35 @@ function detectMood(text) {
   return null;
 }
 
+
+// Name detector
 function detectName(text) {
   const match = text.match(/my name is (\w+)/i);
   return match ? match[1] : null;
 }
 
+
 // ================= EVENT AI =================
 
 async function detectEventAI(text) {
+
   try {
+
     const res = await groq.chat.completions.create({
+
       model: "llama-3.1-8b-instant",
+
       temperature: 0,
+
       max_tokens: 120,
+
       messages: [
         {
           role: "system",
           content: `
-Detect future event.
+Detect if user mentions ANY future event.
 
-Return JSON ONLY:
+Return ONLY JSON:
 
 {
   "hasEvent": true/false,
@@ -110,13 +128,17 @@ Return JSON ONLY:
     return JSON.parse(res.choices[0].message.content);
 
   } catch {
+
     return { hasEvent: false };
   }
 }
 
+
+
 // ================= DATE PARSER =================
 
 async function parseDate(text) {
+
   try {
 
     const now = Date.now();
@@ -124,6 +146,7 @@ async function parseDate(text) {
     const res = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
+
       temperature: 0,
 
       messages: [
@@ -135,9 +158,9 @@ Current timestamp: ${now}
 Convert user message to FUTURE timestamp.
 
 Rules:
-- Always return time in future
-- If user says "in 5 min", add to now
-- Never return past time
+- Always future time
+- "in 5 min" = now+5min
+- "tomorrow 9am" = correct
 
 Return ONLY JSON:
 
@@ -155,23 +178,23 @@ Return ONLY JSON:
 
     const parsed = JSON.parse(res.choices[0].message.content);
 
-    // 🚨 SAFETY CHECK
     if (!parsed.timestamp || parsed.timestamp <= now) {
-      throw new Error("Invalid past time");
+      throw new Error("Invalid time");
     }
 
     return parsed;
 
-  } catch (err) {
+  } catch {
 
-    console.log("⚠️ Time AI failed, using fallback");
+    console.log("⚠️ Time parse fallback");
 
-    // ✅ SAFE fallback: +5 minutes
     return {
       timestamp: Date.now() + 5 * 60 * 1000
     };
   }
 }
+
+
 
 // ================= CHAT =================
 
@@ -185,23 +208,32 @@ app.post("/chat", async (req, res) => {
       return res.json({ reply: "Bro 😭 say something 💙" });
     }
 
+
     let db = loadDB();
 
+
+    // Create user
     if (!db[fcmToken]) {
+
       db[fcmToken] = {
+
         profile: {
           name: null,
           mood: "neutral",
           stress: 5,
           confidence: 5
         },
+
         events: [],
         history: [],
         waitingFor: null
       };
     }
 
+
     const user = db[fcmToken];
+
+
 
     // ================= SAVE USER MSG =================
 
@@ -212,19 +244,23 @@ app.post("/chat", async (req, res) => {
 
     if (user.history.length > 12) user.history.shift();
 
+
+
     // ================= MOOD =================
 
     const mood = detectMood(message);
 
-    if (mood) {
-      user.profile.mood = mood;
-    }
+    if (mood) user.profile.mood = mood;
+
+
 
     // ================= NAME =================
 
     const name = detectName(message);
 
     if (name) user.profile.name = name;
+
+
 
     // ================= WAITING =================
 
@@ -236,7 +272,7 @@ app.post("/chat", async (req, res) => {
         title: user.waitingFor.title,
         description: user.waitingFor.description,
         timestamp: parsed.timestamp,
-        notified: { five: false, after: false }
+        notified: { five:false, after:false }
       };
 
       user.events.push(event);
@@ -249,6 +285,8 @@ app.post("/chat", async (req, res) => {
         reply: `Saved 😤🔥 ${event.title} on ${formatTime(event.timestamp)} 💙`
       });
     }
+
+
 
     // ================= EVENT DETECT =================
 
@@ -264,7 +302,7 @@ app.post("/chat", async (req, res) => {
           title: aiEvent.title,
           description: aiEvent.description,
           timestamp: parsed.timestamp,
-          notified: { five: false, after: false }
+          notified: { five:false, after:false }
         };
 
         user.events.push(event);
@@ -285,6 +323,8 @@ app.post("/chat", async (req, res) => {
       });
     }
 
+
+
     // ================= MAIN AI =================
 
     let reply = "Bro 😭 error";
@@ -292,10 +332,15 @@ app.post("/chat", async (req, res) => {
     try {
 
       const chatAI = await groq.chat.completions.create({
+
         model: "llama-3.1-8b-instant",
+
         temperature: 0.9,
+
         max_tokens: 200,
+
         messages: [
+
           {
             role: "system",
             content: `
@@ -306,9 +351,10 @@ ${JSON.stringify(user.profile)}
 
 Be emotional.
 Remember past chats.
-Use emojis.
+Use emojis 😤💙🔥
 `
           },
+
           ...user.history
         ]
       });
@@ -316,8 +362,11 @@ Use emojis.
       reply = chatAI.choices[0].message.content;
 
     } catch {
+
       reply = "Bro 😭 brain lag 💙";
     }
+
+
 
     user.history.push({
       role: "assistant",
@@ -327,6 +376,7 @@ Use emojis.
     saveDB(db);
 
     res.json({ reply });
+
 
   } catch (err) {
 
@@ -338,15 +388,19 @@ Use emojis.
   }
 });
 
+
+
 // ================= REMINDER SYSTEM =================
 
-// Every 30 sec (better accuracy)
+// Every 30 sec
 cron.schedule("*/30 * * * * *", async () => {
 
   try {
 
     const db = loadDB();
     const now = Date.now();
+
+    console.log("⏰ Checking reminders:", new Date(now).toLocaleTimeString());
 
     for (const token in db) {
 
@@ -356,50 +410,66 @@ cron.schedule("*/30 * * * * *", async () => {
 
         const diff = e.timestamp - now;
 
-        // 🔥 5 MIN BEFORE (±60 sec buffer)
+
+        if (!e.notified) {
+          e.notified = { five:false, after:false };
+        }
+
+
+        // 🔔 5 MIN BEFORE (4–7 min window)
         if (
-          diff <= 5 * 60 * 1000 &&
-          diff > 2 * 60 * 1000 &&
+          diff <= 7 * 60 * 1000 &&
+          diff >= 4 * 60 * 1000 &&
           !e.notified.five
         ) {
+
+          console.log("🔔 5-min reminder:", e.title);
 
           await admin.messaging().send({
             token,
             notification: {
               title: "🔥 You Got This",
-              body: `5 min left for ${e.title} 💙😤`
+              body: `5 min left for ${e.title} 💙😤 Go smash it`
             }
           });
 
           e.notified.five = true;
         }
 
-        // 💙 AFTER (5 min later)
+
+        // 💙 AFTER (3–15 min window)
         if (
-          diff <= -5 * 60 * 1000 &&
+          diff <= -3 * 60 * 1000 &&
+          diff >= -15 * 60 * 1000 &&
           !e.notified.after
         ) {
+
+          console.log("💙 After reminder:", e.title);
 
           await admin.messaging().send({
             token,
             notification: {
               title: "💙 Proud of You",
-              body: `How was ${e.title}? 🤗`
+              body: `How was ${e.title}? 🤗 I’m here`
             }
           });
 
           e.notified.after = true;
         }
+
       }
     }
 
     saveDB(db);
 
   } catch (err) {
-    console.log("Reminder error:", err);
+
+    console.log("❌ Reminder error:", err.message);
   }
 
 });
+
+
 
 // ================= START =================
 
