@@ -1,5 +1,17 @@
 
+const languageSelect = document.getElementById("languageSelect");
 
+// Load saved language
+if (languageSelect) {
+  const savedLang = localStorage.getItem("language") || "hinglish";
+  languageSelect.value = savedLang;
+
+  // When user changes language
+  languageSelect.addEventListener("change", () => {
+    localStorage.setItem("language", languageSelect.value);
+    console.log("Language set:", languageSelect.value);
+  });
+}
 // ================= TOKEN =================
 
 function setFCMToken(token) {
@@ -171,11 +183,11 @@ async function send() {
         "Content-Type": "application/json"
       },
 
-      body: JSON.stringify({
-        message: text,
-        fcmToken: token,
-        language: lang   // ✅ SEND LANGUAGE
-      })
+    body: JSON.stringify({
+  message: text,
+  fcmToken: token,
+  language: localStorage.getItem("language") || "hinglish"
+})
     });
 
 
