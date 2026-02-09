@@ -90,11 +90,11 @@ function detectName(text) {
 
 // ================= DATE PARSER =================
 
+// ================= AI EVENT DETECTOR =================
+
 async function detectEventAI(text) {
 
   try {
-
-    const now = new Date().toISOString();
 
     const res = await groq.chat.completions.create({
 
@@ -102,33 +102,23 @@ async function detectEventAI(text) {
 
       temperature: 0,
 
+      max_tokens: 100,
+
       messages: [
         {
           role: "system",
           content: `
-You are an event analyzer.
+Detect if user mentions ANY future event.
 
-Current time:
-${now}
-
-Decide if user mentions a future important event.
-
-If YES, return JSON:
+Return ONLY JSON:
 
 {
-  "hasEvent": true,
-  "title": "short event name",
-  "description": "what is happening",
-  "timeText": "time mentioned or null"
+  "hasEvent": true/false,
+  "title": "event name or null",
+  "description": "short desc or null"
 }
 
-If NO, return:
-
-{
-  "hasEvent": false
-}
-
-Only JSON.
+No explanation.
 `
         },
         {
@@ -138,11 +128,20 @@ Only JSON.
       ]
     });
 
-    return JSON.parse(res.choices[0].message.content);
+    const raw = res.choices[0].message.content;
 
-  } catch (e) {
+    return JSON.parse(raw);
 
-    return { hasEvent: false };
+  } catch (err) {
+
+    console.log("⚠️ Event AI failed:", err.message);
+
+    // FAIL SAFE
+    return {
+      hasEvent: false,
+      title: null,
+      description: null
+    };
   }
 }
 
@@ -189,6 +188,8 @@ app.post("/chat", async (req, res) => {
   // ================= SAVE USER MESSAGE =================
 // ================= AI EVENT DETECT =================
 
+// ================= AI EVENT DETECT =================
+
 const aiEvent = await detectEventAI(message);
 
 if (aiEvent.hasEvent && !user.waitingFor) {
@@ -201,7 +202,7 @@ if (aiEvent.hasEvent && !user.waitingFor) {
   saveDB(db);
 
   return res.json({
-    reply: `Ohhh 😭💙 when exactly is "${aiEvent.title}"? Tell me date/time bro 🔥`
+    reply: `Ohhh 😭💙 when is "${aiEvent.title}"? Date + time bro 🔥`
   });
 }
   user.history.push({
@@ -249,30 +250,29 @@ if (aiEvent.hasEvent && !user.waitingFor) {
 
   // ================= WAITING FOR DATE =================
 
-  if (user.waitingFor) {
+  // ================= IF WAITING FOR DATE =================
 
-    const parsed = await parseDate(message);
+if (user.waitingFor) {
 
-    const event = {
-      type: user.waitingFor,
-      date: parsed.date,
-      time: parsed.time
-    };
+  const parsed = await parseDate(message);
 
-    user.events.push(event);
+  const event = {
+    title: user.waitingFor.title,
+    description: user.waitingFor.description,
+    date: parsed.date,
+    time: parsed.time
+  };
 
-    if (!user.profile.goals.includes(event.type)) {
-      user.profile.goals.push(event.type);
-    }
+  user.events.push(event);
 
-    user.waitingFor = null;
+  user.waitingFor = null;
 
-    saveDB(db);
+  saveDB(db);
 
-    return res.json({
-      reply: `Saved 😤🔥 Your ${event.type} is on ${event.date} 💙`
-    });
-  }
+  return res.json({
+    reply: `Saved 😤🔥 I’ll remind you before "${event.title}" 💙`
+  });
+}
 
 
 
