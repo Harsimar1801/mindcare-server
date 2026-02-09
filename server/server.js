@@ -71,7 +71,7 @@ function formatTime(ts) {
 }
 
 
-// ================= MOOD DETECTOR =================
+// ================= MOOD =================
 
 function detectMood(text) {
 
@@ -117,7 +117,6 @@ const moodReplies = {
   ]
 };
 
-
 function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -146,16 +145,12 @@ app.post("/chat", async (req, res) => {
     const { message, fcmToken } = req.body;
 
     if (!message || !fcmToken) {
-      return res.json({
-        reply: "Bhai kuch likh toh sahi 💙"
-      });
+      return res.json({ reply: "Bhai kuch likh toh sahi 💙" });
     }
-
 
     let db = loadDB();
 
 
-    // Create user
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
@@ -169,13 +164,13 @@ app.post("/chat", async (req, res) => {
     const user = db[fcmToken];
 
 
-    // Save user message
+    // Save user msg
     user.history.push({
       role: "user",
       content: message
     });
 
-    if (user.history.length > 12) user.history.shift();
+    if (user.history.length > 20) user.history.shift();
 
 
     // ================= MOOD =================
@@ -187,10 +182,16 @@ app.post("/chat", async (req, res) => {
       user.profile.mood = mood;
       saveDB(db);
 
-      return res.json({
-        reply: randomFrom(moodReplies[mood]),
-        mood
+      const reply = randomFrom(moodReplies[mood]);
+
+      user.history.push({
+        role: "assistant",
+        content: reply
       });
+
+      saveDB(db);
+
+      return res.json({ reply, mood });
     }
 
 
@@ -209,12 +210,16 @@ app.post("/chat", async (req, res) => {
         }
       });
 
+      const reply = `All the best 😤💙 Exam at ${formatTime(time)}`;
+
+      user.history.push({
+        role: "assistant",
+        content: reply
+      });
+
       saveDB(db);
 
-      return res.json({
-        reply: `All the best 😤💙 Exam at ${formatTime(time)}`,
-        mood: user.profile.mood
-      });
+      return res.json({ reply, mood: user.profile.mood });
     }
 
 
@@ -231,10 +236,7 @@ app.post("/chat", async (req, res) => {
           role: "system",
           content: `
 You are MindCare.
-
-Be caring.
-Be mature.
-Be natural.
+Be caring, mature, natural.
 Use light Hinglish.
 No cringe.
 Short replies.
@@ -269,14 +271,38 @@ Ask max 1 question.
 
     console.log("🔥 SERVER ERROR:", err);
 
-    res.json({
-      reply: "Bhai thoda issue aa gaya 😭"
-    });
+    res.json({ reply: "Bhai thoda issue aa gaya 😭" });
   }
 });
 
 
-// ================= REMINDER SYSTEM (FIXED) =================
+
+// ================= GET HISTORY API =================
+
+app.get("/history/:token", (req, res) => {
+
+  try {
+
+    const token = req.params.token;
+
+    if (!token) return res.json([]);
+
+    const db = loadDB();
+
+    if (!db[token]) return res.json([]);
+
+    res.json(db[token].history || []);
+
+  } catch (err) {
+
+    console.log("History error:", err);
+    res.json([]);
+  }
+});
+
+
+
+// ================= REMINDER SYSTEM =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -298,7 +324,7 @@ cron.schedule("*/30 * * * * *", async () => {
         const diff = e.time - now;
 
 
-        // ===== 5 MIN BEFORE =====
+        // ===== BEFORE =====
         if (
           diff <= 5 * 60000 &&
           diff > 2 * 60000 &&
@@ -307,15 +333,12 @@ cron.schedule("*/30 * * * * *", async () => {
 
           const msg = "5 min left 😤💙 All the best!";
 
-
-          // ✅ SAVE IN CHAT
           user.history.push({
             role: "assistant",
             content: msg
           });
 
 
-          // ✅ SEND NOTIFICATION
           await admin.messaging().send({
 
             token,
@@ -335,8 +358,7 @@ cron.schedule("*/30 * * * * *", async () => {
         }
 
 
-
-        // ===== AFTER EXAM =====
+        // ===== AFTER =====
         if (
           diff <= -2 * 60000 &&
           !e.notified.after
@@ -344,15 +366,12 @@ cron.schedule("*/30 * * * * *", async () => {
 
           const msg = "Kaisa gaya exam? 🤗 Bata na";
 
-
-          // ✅ SAVE IN CHAT
           user.history.push({
             role: "assistant",
             content: msg
           });
 
 
-          // ✅ SEND NOTIFICATION
           await admin.messaging().send({
 
             token,
@@ -373,8 +392,6 @@ cron.schedule("*/30 * * * * *", async () => {
       }
     }
 
-
-    // ✅ Save DB once
     saveDB(db);
 
   } catch (err) {
@@ -382,6 +399,7 @@ cron.schedule("*/30 * * * * *", async () => {
     console.log("Reminder error:", err);
   }
 });
+
 
 
 // ================= START =================

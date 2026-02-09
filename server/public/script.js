@@ -3,6 +3,9 @@
 function setFCMToken(token) {
   console.log("Saved Token:", token);
   localStorage.setItem("fcmToken", token);
+
+  // Load chat after token
+  loadServerChat();
 }
 
 
@@ -35,6 +38,7 @@ if (window.Android && window.Android.getFCMToken) {
 }
 
 
+
 // ================= UI =================
 
 const chat = document.getElementById("chat");
@@ -44,48 +48,6 @@ const themePicker = document.getElementById("themePicker");
 const app = document.querySelector(".app");
 const header = document.querySelector(".header");
 const inputBox = document.querySelector(".input-box");
-
-
-// ================= CHAT STORAGE =================
-
-
-// Save chat
-function saveChat() {
-
-  const messages = [];
-
-  document.querySelectorAll("#chat .user, #chat .bot").forEach(msg => {
-    messages.push({
-      text: msg.innerText,
-      type: msg.className
-    });
-  });
-
-  localStorage.setItem("mindcare_chat", JSON.stringify(messages));
-}
-
-
-// Load chat
-function loadChat() {
-
-  const data = localStorage.getItem("mindcare_chat");
-
-  if (!data) return;
-
-  const messages = JSON.parse(data);
-
-  messages.forEach(m => {
-
-    const div = document.createElement("div");
-
-    div.className = m.type;
-    div.innerText = m.text;
-
-    chat.appendChild(div);
-  });
-
-  chat.scrollTop = chat.scrollHeight;
-}
 
 
 
@@ -101,47 +63,43 @@ function addMessage(text, type) {
   chat.appendChild(div);
 
   chat.scrollTop = chat.scrollHeight;
-
-  saveChat();
 }
 
 
 
-// ================= LOAD CHAT =================
+// ================= LOAD CHAT FROM SERVER =================
 
-loadChat();
-// Show notification message if exists
-const notifMessage = localStorage.getItem("notifMessage");
+async function loadServerChat() {
 
-if (notifMessage) {
-  addMessage("MindCare: " + notifMessage, "bot");
-  localStorage.removeItem("notifMessage");
+  const token = localStorage.getItem("fcmToken");
+
+  if (!token) return;
+
+  try {
+
+    const res = await fetch(`/history/${token}`);
+
+    const data = await res.json();
+
+    chat.innerHTML = "";
+
+    data.forEach(m => {
+
+      if (m.role === "user") {
+        addMessage("You: " + m.content, "user");
+      }
+
+      if (m.role === "assistant") {
+        addMessage("MindCare: " + m.content, "bot");
+      }
+
+    });
+
+  } catch (err) {
+
+    console.log("History load error:", err);
+  }
 }
-
-
-// =======================================
-// 🔔 NOTIFICATION → AUTO CHAT (FIXED)
-// =======================================
-
-(function () {
-
-  const params = new URLSearchParams(window.location.search);
-  const notif = params.get("message");
-
-  if (!notif) return;
-
-  const clean = decodeURIComponent(notif);
-
-  // Show as bot message
-  addMessage("MindCare: " + clean, "bot");
-
-  // Save chat
-  saveChat();
-
-  // Remove msg from URL
-  window.history.replaceState({}, document.title, "/chat.html");
-
-})();
 
 
 
@@ -292,7 +250,6 @@ function applyTheme(baseHex) {
   const darkMode = bright < 135;
 
 
-  // App background
   app.style.background = `
     linear-gradient(
       135deg,
@@ -302,17 +259,14 @@ function applyTheme(baseHex) {
   `;
 
 
-  // Header
   header.style.background =
     `rgba(${soft.r},${soft.g},${soft.b},0.45)`;
 
 
-  // Input area
   inputBox.style.background =
     `rgba(${soft.r},${soft.g},${soft.b},0.25)`;
 
 
-  // Button
   sendBtn.style.background =
     `rgb(${soft.r - 10},${soft.g - 10},${soft.b - 10})`;
 
@@ -361,3 +315,18 @@ if (themePicker) {
     localStorage.setItem("themeColor", color);
   });
 }
+
+
+
+// ================= AUTO LOAD =================
+
+// If token already exists
+window.addEventListener("load", () => {
+
+  const token = localStorage.getItem("fcmToken");
+
+  if (token) {
+    loadServerChat();
+  }
+
+});
