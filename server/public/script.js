@@ -110,7 +110,13 @@ function addMessage(text, type) {
 // ================= LOAD CHAT =================
 
 loadChat();
+// Show notification message if exists
+const notifMessage = localStorage.getItem("notifMessage");
 
+if (notifMessage) {
+  addMessage("MindCare: " + notifMessage, "bot");
+  localStorage.removeItem("notifMessage");
+}
 
 
 // =======================================
@@ -120,7 +126,7 @@ loadChat();
 (function () {
 
   const params = new URLSearchParams(window.location.search);
-  const notif = params.get("msg");
+  const notif = params.get("message");
 
   if (!notif) return;
 

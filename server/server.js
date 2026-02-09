@@ -303,12 +303,12 @@ cron.schedule("*/30 * * * * *", async () => {
             notification: {
               title: "🔥 You Got This",
               body: msg,
-              click_action: "FLUTTER_NOTIFICATION_CLICK"
+              // click_action: "FLUTTER_NOTIFICATION_CLICK"
             },
 
             data: {
               msg: msg,
-              url: "/chat.html?msg=" + encodeURIComponent(msg)
+              // url: "/chat.html?msg=" + encodeURIComponent(msg)
             }
 
           });
