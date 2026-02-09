@@ -1,14 +1,4 @@
-self.addEventListener("install", event => {
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", event => {
-  event.waitUntil(self.clients.claim());
-});
-
-
-// Handle push
-self.addEventListener("push", event => {
+self.addEventListener("push", function (event) {
 
   let data = {};
 
@@ -17,43 +7,52 @@ self.addEventListener("push", event => {
   }
 
   const title = data.notification?.title || "MindCare 💙";
-  const body = data.notification?.body || "Hey bro 😄";
+  const body = data.notification?.body || "New message";
+
+  const message = data.data?.message || "";
+
+  const options = {
+    body,
+    icon: "/icon.png",
+    badge: "/icon.png",
+
+    data: {
+      url: "/chat.html?msg=" + encodeURIComponent(message)
+    }
+  };
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon: "/icon.png",
-      data: data.data || {}
-    })
+    self.registration.showNotification(title, options)
   );
 });
 
 
-// Handle click
-self.addEventListener("notificationclick", event => {
+// When user clicks notification
+self.addEventListener("notificationclick", function (event) {
 
   event.notification.close();
 
-  const msg = event.notification.data?.message || "";
-
-  let url = "/chat.html";
-
-  if (msg) {
-    url += "?msg=" + encodeURIComponent(msg);
-  }
+  const url = event.notification.data.url;
 
   event.waitUntil(
-    clients.matchAll({ type: "window" }).then(clientList => {
 
-      // If chat already open → focus
-      for (let client of clientList) {
-        if (client.url.includes("chat.html")) {
-          return client.focus();
+    clients.matchAll({ type: "window", includeUncontrolled: true })
+
+      .then(function (clientList) {
+
+        // If app already open → focus
+        for (let client of clientList) {
+
+          if (client.url.includes("/chat.html")) {
+            return client.focus();
+          }
         }
-      }
 
-      // Else open new
-      return clients.openWindow(url);
-    })
+        // Else open new tab
+        if (clients.openWindow) {
+          return clients.openWindow(url);
+        }
+
+      })
   );
 });

@@ -107,83 +107,81 @@ function addMessage(text, type) {
 
 
 
-// ================= LOAD CHAT FIRST =================
+// ================= LOAD CHAT =================
 
 loadChat();
 
 
 
-// ================= MOOD WELCOME =================
+// =======================================
+// 🔔 NOTIFICATION → AUTO CHAT SYSTEM
+// =======================================
 
-function getMoodWelcome(mood) {
+async function handleNotificationAutoChat() {
 
-  const map = {
-    happy: "😄 You sound happy today bro! What made you smile? 💙",
-    sad: "🥺 You seem low today… want to talk about it?",
-    anxious: "😰 Feeling anxious? I'm here. Kya hua?",
-    calm: "😌 You seem calm today. What's on your mind?",
-    tired: "😴 You look tired bro… rough day?",
-    lonely: "💙 Feeling alone? You're not alone here.",
-    excited: "🔥 Damn you sound excited! Bata na!",
-    neutral: "Hey bro 💙 How are you feeling today?"
-  };
+  // From URL
+  const params = new URLSearchParams(window.location.search);
+  let notif = params.get("msg");
 
-  return map[mood] || map.neutral;
+  // Or from storage
+  if (!notif) {
+    notif = localStorage.getItem("notifMessage");
+  }
+
+  if (!notif) return;
+
+  const clean = decodeURIComponent(notif);
+
+  // Remove so it doesn't repeat
+  localStorage.removeItem("notifMessage");
+  window.history.replaceState({}, document.title, "/chat.html");
+
+  // Show bot message
+  addMessage("MindCare: " + clean, "bot");
+
+  // Auto-send to server
+  try {
+
+    const token = localStorage.getItem("fcmToken");
+
+    const res = await fetch("/chat", {
+
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json"
+      },
+
+      body: JSON.stringify({
+        message: clean,
+        fcmToken: token
+      })
+    });
+
+    const data = await res.json();
+
+    // Show AI reply
+    addMessage("MindCare: " + data.reply, "bot");
+
+    // Apply mood if exists
+    if (data.mood) {
+
+      localStorage.setItem("userMood", data.mood);
+
+      if (moodThemes[data.mood]) {
+        applyTheme(moodThemes[data.mood]);
+      }
+    }
+
+  } catch (err) {
+
+    console.log("Auto chat error:", err);
+  }
 }
 
 
-
-// ================= INITIAL MESSAGE =================
-
-// function showInitialMessage() {
-
-//   // If chat already exists → no welcome
-//   if (chat.children.length > 0) return;
-
-
-//   // Check notification first
-//   const notif = localStorage.getItem("notifMessage");
-
-//   if (notif) {
-
-//     addMessage("MindCare: " + notif, "bot");
-
-//     localStorage.removeItem("notifMessage");
-
-//     return;
-//   }
-
-
-//   // Mood welcome
-//   const mood = localStorage.getItem("userMood") || "neutral";
-
-//   const msg = getMoodWelcome(mood);
-
-//   addMessage("MindCare: " + msg, "bot");
-// }
-
-
-
-
-
-// ================= URL NOTIFICATION =================
-
-(function(){
-
-  const params = new URLSearchParams(window.location.search);
-  const notifMsg = params.get("msg");
-
-  if (!notifMsg) return;
-
-  const clean = decodeURIComponent(notifMsg);
-
-  localStorage.setItem("notifMessage", clean);
-
-  window.history.replaceState({}, document.title, "/chat.html");
-
-  location.reload();
-
-})();
+// Run when page loads
+window.addEventListener("load", handleNotificationAutoChat);
 
 
 
@@ -230,29 +228,21 @@ async function send() {
 
 
     const data = await res.json();
-// ================= APPLY MOOD =================
 
-if (data.mood) {
-
-  localStorage.setItem("userMood", data.mood);
-
-  if (moodThemes[data.mood]) {
-    applyTheme(moodThemes[data.mood]);
-  }
-}
     chat.removeChild(typing);
 
-addMessage("MindCare: " + data.reply, "bot");
+    addMessage("MindCare: " + data.reply, "bot");
 
-// ✅ SAVE MOOD FROM SERVER
-if (data.mood) {
-  localStorage.setItem("userMood", data.mood);
 
-  // Apply theme instantly
-  if (moodThemes[data.mood]) {
-    applyTheme(moodThemes[data.mood]);
-  }
-}
+    // Save mood + theme
+    if (data.mood) {
+
+      localStorage.setItem("userMood", data.mood);
+
+      if (moodThemes[data.mood]) {
+        applyTheme(moodThemes[data.mood]);
+      }
+    }
 
   }
 
@@ -342,7 +332,6 @@ function applyTheme(baseHex) {
   const darkMode = bright < 135;
 
 
-  // App background
   app.style.background = `
     linear-gradient(
       135deg,
@@ -352,22 +341,18 @@ function applyTheme(baseHex) {
   `;
 
 
-  // Header
   header.style.background =
     `rgba(${soft.r},${soft.g},${soft.b},0.45)`;
 
 
-  // Input area
   inputBox.style.background =
     `rgba(${soft.r},${soft.g},${soft.b},0.25)`;
 
 
-  // Button
   sendBtn.style.background =
     `rgb(${soft.r - 10},${soft.g - 10},${soft.b - 10})`;
 
 
-  // Text
   const textColor = darkMode ? "#ffffff" : "#121212";
 
   app.style.color = textColor;
