@@ -1,40 +1,80 @@
+// ================= TOKEN =================
+
+function setFCMToken(token) {
+  console.log("Saved Token:", token);
+  localStorage.setItem("fcmToken", token);
+}
+
+
+// ================= SERVICE WORKER =================
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("/sw.js")
+    .then(() => console.log("SW Ready"))
+    .catch(err => console.log("SW Error:", err));
+}
+
+
+// ================= PERMISSION =================
+
+async function askPermission() {
+  if ("Notification" in window) {
+    const p = await Notification.requestPermission();
+    console.log("Permission:", p);
+  }
+}
+
+askPermission();
+
+
+// ================= ANDROID BRIDGE =================
+
+if (window.Android && window.Android.getFCMToken) {
+  window.Android.getFCMToken();
+}
+
+
 // ================= UI =================
 
 const chat = document.getElementById("chat");
 const input = document.getElementById("msg");
 const sendBtn = document.querySelector(".send-btn");
+const themePicker = document.getElementById("themePicker");
 const app = document.querySelector(".app");
 const header = document.querySelector(".header");
 const inputBox = document.querySelector(".input-box");
 
 
-
 // ================= CHAT STORAGE =================
 
+
+// Save chat
 function saveChat() {
 
   const messages = [];
 
-  document.querySelectorAll("#chat .user, #chat .bot").forEach(m => {
-
+  document.querySelectorAll("#chat .user, #chat .bot").forEach(msg => {
     messages.push({
-      text: m.innerText,
-      type: m.className
+      text: msg.innerText,
+      type: msg.className
     });
-
   });
 
   localStorage.setItem("mindcare_chat", JSON.stringify(messages));
 }
 
 
+// Load chat
 function loadChat() {
 
   const data = localStorage.getItem("mindcare_chat");
 
   if (!data) return;
 
-  JSON.parse(data).forEach(m => {
+  const messages = JSON.parse(data);
+
+  messages.forEach(m => {
 
     const div = document.createElement("div");
 
@@ -67,33 +107,24 @@ function addMessage(text, type) {
 
 
 
-// ================= LOAD CHAT =================
+// ================= LOAD CHAT FIRST =================
 
 loadChat();
 
-// ================= SHOW MOOD WELCOME =================
 
-if (chat.children.length === 0) {
-
-  const mood = localStorage.getItem("userMood") || "neutral";
-
-  const msg = getMoodWelcome(mood);
-
-  addMessage("MindCare: " + msg, "bot");
-}
 
 // ================= MOOD WELCOME =================
 
 function getMoodWelcome(mood) {
 
   const map = {
-
-    happy: "😄 You sound happy today bro! What made you smile?",
-    sad: "🥺 You seem low… want to talk?",
-    anxious: "😰 Feeling anxious? I'm here.",
-    tired: "😴 You look tired bro…",
-    lonely: "💙 Feeling alone? I'm here.",
-    excited: "🔥 You sound excited!",
+    happy: "😄 You sound happy today bro! What made you smile? 💙",
+    sad: "🥺 You seem low today… want to talk about it?",
+    anxious: "😰 Feeling anxious? I'm here. Kya hua?",
+    calm: "😌 You seem calm today. What's on your mind?",
+    tired: "😴 You look tired bro… rough day?",
+    lonely: "💙 Feeling alone? You're not alone here.",
+    excited: "🔥 Damn you sound excited! Bata na!",
     neutral: "Hey bro 💙 How are you feeling today?"
   };
 
@@ -102,18 +133,57 @@ function getMoodWelcome(mood) {
 
 
 
-// ================= FIRST MESSAGE =================
+// ================= INITIAL MESSAGE =================
 
-function showInitialMessage() {
+// function showInitialMessage() {
 
-  if (chat.children.length > 0) return;
+//   // If chat already exists → no welcome
+//   if (chat.children.length > 0) return;
 
-  const mood = localStorage.getItem("userMood") || "neutral";
 
-  addMessage("MindCare: " + getMoodWelcome(mood), "bot");
-}
+//   // Check notification first
+//   const notif = localStorage.getItem("notifMessage");
 
-showInitialMessage();
+//   if (notif) {
+
+//     addMessage("MindCare: " + notif, "bot");
+
+//     localStorage.removeItem("notifMessage");
+
+//     return;
+//   }
+
+
+//   // Mood welcome
+//   const mood = localStorage.getItem("userMood") || "neutral";
+
+//   const msg = getMoodWelcome(mood);
+
+//   addMessage("MindCare: " + msg, "bot");
+// }
+
+
+
+
+
+// ================= URL NOTIFICATION =================
+
+(function(){
+
+  const params = new URLSearchParams(window.location.search);
+  const notifMsg = params.get("msg");
+
+  if (!notifMsg) return;
+
+  const clean = decodeURIComponent(notifMsg);
+
+  localStorage.setItem("notifMessage", clean);
+
+  window.history.replaceState({}, document.title, "/chat.html");
+
+  location.reload();
+
+})();
 
 
 
@@ -130,10 +200,16 @@ async function send() {
   input.value = "";
 
 
+  // Typing
   const typing = document.createElement("div");
   typing.className = "bot";
   typing.innerText = "MindCare is typing...";
   chat.appendChild(typing);
+
+  chat.scrollTop = chat.scrollHeight;
+
+
+  const token = localStorage.getItem("fcmToken");
 
 
   try {
@@ -148,51 +224,45 @@ async function send() {
 
       body: JSON.stringify({
         message: text,
-        fcmToken: localStorage.getItem("fcmToken")
+        fcmToken: token
       })
     });
 
 
     const data = await res.json();
-// ================= APPLY MOOD FROM SERVER =================
+// ================= APPLY MOOD =================
 
 if (data.mood) {
 
-  console.log("Mood from server:", data.mood);
+  localStorage.setItem("userMood", data.mood);
 
-  // Save mood
+  if (moodThemes[data.mood]) {
+    applyTheme(moodThemes[data.mood]);
+  }
+}
+    chat.removeChild(typing);
+
+addMessage("MindCare: " + data.reply, "bot");
+
+// ✅ SAVE MOOD FROM SERVER
+if (data.mood) {
   localStorage.setItem("userMood", data.mood);
 
   // Apply theme instantly
   if (moodThemes[data.mood]) {
     applyTheme(moodThemes[data.mood]);
   }
-
-  // Clear old welcome so it refreshes
-  localStorage.removeItem("mindcare_chat");
 }
-    chat.removeChild(typing);
 
-    addMessage("MindCare: " + data.reply, "bot");
+  }
 
+  catch (err) {
 
-    // ================= SAVE MOOD =================
-
-    if (data.mood) {
-
-      localStorage.setItem("userMood", data.mood);
-
-      if (moodThemes[data.mood]) {
-        applyTheme(moodThemes[data.mood]);
-      }
-    }
-
-
-  } catch {
+    console.log(err);
 
     chat.removeChild(typing);
 
-    addMessage("MindCare: Server down 😭", "bot");
+    addMessage("MindCare: Server down 😭 Try later bro 💙", "bot");
   }
 }
 
@@ -207,23 +277,24 @@ input.addEventListener("keydown", e => {
 
 
 // =====================================
-// 🎨 THEME ENGINE
+// 🧠 SMART THEME ENGINE
 // =====================================
 
 
+// Mood → Soft Colors
 const moodThemes = {
-
   happy: "#F7C59F",
   calm: "#7FB7BE",
   sad: "#6C63FF",
   anxious: "#C77DFF",
+  stressed: "#FF9F68",
   tired: "#9CA3AF",
   lonely: "#B39DDB",
   excited: "#64DFDF"
 };
 
 
-
+// HEX → RGB
 function hexToRgb(hex) {
 
   let num = parseInt(hex.replace("#", ""), 16);
@@ -236,11 +307,13 @@ function hexToRgb(hex) {
 }
 
 
+// Clamp
 function clamp(v) {
   return Math.min(255, Math.max(0, v));
 }
 
 
+// Soften
 function soften({ r, g, b }) {
 
   return {
@@ -251,6 +324,7 @@ function soften({ r, g, b }) {
 }
 
 
+// Brightness
 function brightness({ r, g, b }) {
 
   return (r * 299 + g * 587 + b * 114) / 1000;
@@ -258,52 +332,83 @@ function brightness({ r, g, b }) {
 
 
 
-function applyTheme(hex) {
+// APPLY THEME
+function applyTheme(baseHex) {
 
-  const soft = soften(hexToRgb(hex));
+  const rgb = hexToRgb(baseHex);
+  const soft = soften(rgb);
 
-  const dark = brightness(soft) < 135;
+  const bright = brightness(soft);
+  const darkMode = bright < 135;
 
 
+  // App background
   app.style.background = `
     linear-gradient(
       135deg,
       rgba(${soft.r},${soft.g},${soft.b},0.35),
-      rgba(${soft.r-25},${soft.g-25},${soft.b-25},0.35)
+      rgba(${soft.r - 25},${soft.g - 25},${soft.b - 25},0.35)
     )
   `;
 
 
+  // Header
   header.style.background =
     `rgba(${soft.r},${soft.g},${soft.b},0.45)`;
 
 
+  // Input area
   inputBox.style.background =
     `rgba(${soft.r},${soft.g},${soft.b},0.25)`;
 
 
+  // Button
   sendBtn.style.background =
-    `rgb(${soft.r-10},${soft.g-10},${soft.b-10})`;
+    `rgb(${soft.r - 10},${soft.g - 10},${soft.b - 10})`;
 
 
-  const color = dark ? "#fff" : "#111";
+  // Text
+  const textColor = darkMode ? "#ffffff" : "#121212";
 
-  app.style.color = color;
-  input.style.color = color;
-  sendBtn.style.color = color;
+  app.style.color = textColor;
+  input.style.color = textColor;
+
+  input.style.background = darkMode
+    ? "rgba(255,255,255,0.15)"
+    : "rgba(0,0,0,0.15)";
+
+  sendBtn.style.color = darkMode ? "#fff" : "#111";
 }
 
 
 
-// ================= APPLY ON LOAD =================
+// ================= LOAD THEME =================
 
-(function(){
+const savedColor = localStorage.getItem("themeColor");
 
-  const mood = localStorage.getItem("userMood");
+if (savedColor) {
+  applyTheme(savedColor);
+}
 
-  if (mood && moodThemes[mood]) {
 
-    applyTheme(moodThemes[mood]);
-  }
+const savedMood = localStorage.getItem("userMood");
 
-})();
+if (!savedColor && savedMood && moodThemes[savedMood]) {
+  applyTheme(moodThemes[savedMood]);
+}
+
+
+
+// ================= PICKER =================
+
+if (themePicker) {
+
+  themePicker.addEventListener("input", () => {
+
+    const color = themePicker.value;
+
+    applyTheme(color);
+
+    localStorage.setItem("themeColor", color);
+  });
+}
