@@ -61,6 +61,47 @@ const header = document.querySelector(".header");
 const inputBox = document.querySelector(".input-box");
 
 
+// ================= CHAT STORAGE =================
+
+// Save chat
+function saveChat() {
+
+  const messages = [];
+
+  document.querySelectorAll("#chat .user, #chat .bot").forEach(msg => {
+    messages.push({
+      text: msg.innerText,
+      type: msg.className
+    });
+  });
+
+  localStorage.setItem("mindcare_chat", JSON.stringify(messages));
+}
+
+
+// Load chat
+function loadChat() {
+
+  const data = localStorage.getItem("mindcare_chat");
+
+  if (!data) return;
+
+  const messages = JSON.parse(data);
+
+  messages.forEach(m => {
+
+    const div = document.createElement("div");
+
+    div.className = m.type;
+    div.innerText = m.text;
+
+    chat.appendChild(div);
+  });
+
+  chat.scrollTop = chat.scrollHeight;
+}
+
+
 // ================= ADD MESSAGE =================
 
 function addMessage(text, type) {
@@ -73,12 +114,23 @@ function addMessage(text, type) {
   chat.appendChild(div);
 
   chat.scrollTop = chat.scrollHeight;
+
+  // ✅ Auto save
+  saveChat();
 }
+
+
+// ================= LOAD OLD CHAT =================
+
+loadChat();
 
 
 // ================= WELCOME =================
 
-addMessage("Yo Harsimar 😄💙 I'm here bro.", "bot");
+// Only show welcome if chat is empty
+if (chat.children.length === 0) {
+  addMessage("Yo Harsimar 😄💙 I'm here bro.", "bot");
+}
 
 
 // ================= SEND =================
@@ -99,6 +151,8 @@ async function send() {
   typing.className = "bot";
   typing.innerText = "MindCare is typing...";
   chat.appendChild(typing);
+
+  chat.scrollTop = chat.scrollHeight;
 
 
   const token = localStorage.getItem("fcmToken");
@@ -248,10 +302,6 @@ function applyTheme(baseHex) {
     : "rgba(0,0,0,0.15)";
 
   sendBtn.style.color = darkMode ? "#fff" : "#111";
-
-
-  // Placeholder
-  input.style.setProperty("color", textColor);
 }
 
 
