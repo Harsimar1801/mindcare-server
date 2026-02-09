@@ -71,7 +71,7 @@ function formatTime(ts) {
 }
 
 
-// ================= MOOD =================
+// ================= MOOD DETECTOR =================
 
 function detectMood(text) {
 
@@ -117,6 +117,7 @@ const moodReplies = {
   ]
 };
 
+
 function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -150,9 +151,11 @@ app.post("/chat", async (req, res) => {
       });
     }
 
+
     let db = loadDB();
 
 
+    // Create user
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
@@ -162,10 +165,11 @@ app.post("/chat", async (req, res) => {
       };
     }
 
+
     const user = db[fcmToken];
 
 
-    // Save user msg
+    // Save user message
     user.history.push({
       role: "user",
       content: message
@@ -272,7 +276,7 @@ Ask max 1 question.
 });
 
 
-// ================= REMINDER SYSTEM =================
+// ================= REMINDER SYSTEM (FIXED) =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -284,7 +288,12 @@ cron.schedule("*/30 * * * * *", async () => {
 
     for (const token in db) {
 
-      for (const e of db[token].events) {
+      const user = db[token];
+
+      if (!user.events || !user.history) continue;
+
+
+      for (const e of user.events) {
 
         const diff = e.time - now;
 
@@ -298,6 +307,15 @@ cron.schedule("*/30 * * * * *", async () => {
 
           const msg = "5 min left 😤💙 All the best!";
 
+
+          // ✅ SAVE IN CHAT
+          user.history.push({
+            role: "assistant",
+            content: msg
+          });
+
+
+          // ✅ SEND NOTIFICATION
           await admin.messaging().send({
 
             token,
@@ -308,14 +326,14 @@ cron.schedule("*/30 * * * * *", async () => {
             },
 
             data: {
-              message: msg,
-              url: "/chat.html?message=" + encodeURIComponent(msg)
+              message: msg
             }
 
           });
 
           e.notified.before = true;
         }
+
 
 
         // ===== AFTER EXAM =====
@@ -326,6 +344,15 @@ cron.schedule("*/30 * * * * *", async () => {
 
           const msg = "Kaisa gaya exam? 🤗 Bata na";
 
+
+          // ✅ SAVE IN CHAT
+          user.history.push({
+            role: "assistant",
+            content: msg
+          });
+
+
+          // ✅ SEND NOTIFICATION
           await admin.messaging().send({
 
             token,
@@ -336,8 +363,7 @@ cron.schedule("*/30 * * * * *", async () => {
             },
 
             data: {
-              message: msg,
-              url: "/chat.html?message=" + encodeURIComponent(msg)
+              message: msg
             }
 
           });
@@ -347,6 +373,8 @@ cron.schedule("*/30 * * * * *", async () => {
       }
     }
 
+
+    // ✅ Save DB once
     saveDB(db);
 
   } catch (err) {
