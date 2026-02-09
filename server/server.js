@@ -1,11 +1,3 @@
-// ================= IST TIME =================
-
-function getISTDate() {
-  return new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-  );
-}
-
 const path = require("path");
 require("dotenv").config();
 
@@ -63,7 +55,6 @@ function saveDB(data) {
 
 // ================= HELPERS =================
 
-// Mood
 function detectMood(text) {
 
   text = text.toLowerCase();
@@ -77,7 +68,6 @@ function detectMood(text) {
 }
 
 
-// Name
 function detectName(text) {
 
   const match = text.match(/my name is (\w+)/i);
@@ -88,7 +78,7 @@ function detectName(text) {
 }
 
 
-// ================= EVENT DETECTOR =================
+// ================= EVENT AI =================
 
 async function detectEventAI(text) {
 
@@ -106,14 +96,14 @@ async function detectEventAI(text) {
         {
           role: "system",
           content: `
-Detect if user mentions ANY future event.
+Detect future event.
 
-Return ONLY JSON:
+Return JSON ONLY:
 
 {
   "hasEvent": true/false,
-  "title": "event name or null",
-  "description": "short desc or null"
+  "title": "event name",
+  "description": "short desc"
 }
 `
         },
@@ -137,13 +127,14 @@ Return ONLY JSON:
 }
 
 
+
 // ================= DATE PARSER =================
 
 async function parseDate(text) {
 
   try {
 
-    const now = getISTDate();
+    const now = new Date();
 
     const res = await groq.chat.completions.create({
 
@@ -155,22 +146,19 @@ async function parseDate(text) {
         {
           role: "system",
           content: `
-Current IST time: ${now.toISOString()}
+Current time: ${now.toISOString()}
 
-Return ONLY JSON:
+Convert to REAL datetime.
+
+Return JSON ONLY:
 
 {
- "date":"YYYY-MM-DD",
- "time":"HH:MM"
+ "timestamp": number
 }
 
-Calculate real time.
-
-Examples:
-"in 5 min" → calculate
-"tomorrow 9am" → calculate
-
-No explanation.
+Example:
+"in 5 min" → now+5min timestamp
+"tomorrow 9am" → timestamp
 `
         },
         {
@@ -180,26 +168,17 @@ No explanation.
       ]
     });
 
-    const parsed = JSON.parse(res.choices[0].message.content);
-
-    if (!parsed.time || parsed.time.includes("H")) {
-      throw new Error("Invalid time");
-    }
-
-    return parsed;
+    return JSON.parse(res.choices[0].message.content);
 
   } catch {
 
-    // Fallback: +10 min IST
-    const d = getISTDate();
-    d.setMinutes(d.getMinutes() + 10);
-
+    // fallback: +10 min
     return {
-      date: d.toISOString().slice(0,10),
-      time: d.toTimeString().slice(0,5)
+      timestamp: Date.now() + 10 * 60000
     };
   }
 }
+
 
 
 // ================= CHAT =================
@@ -241,7 +220,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= SAVE USER MSG =================
+    // ================= SAVE MSG =================
 
     user.history.push({
       role: "user",
@@ -283,7 +262,7 @@ app.post("/chat", async (req, res) => {
 
 
 
-    // ================= WAITING FOR DATE =================
+    // ================= WAITING =================
 
     if (user.waitingFor) {
 
@@ -292,9 +271,14 @@ app.post("/chat", async (req, res) => {
       const event = {
         title: user.waitingFor.title,
         description: user.waitingFor.description,
-        date: parsed.date,
-        time: parsed.time,
-        notified: {}
+
+        // ✅ REAL TIME
+        timestamp: parsed.timestamp,
+
+        notified: {
+          five: false,
+          after: false
+        }
       };
 
       user.events.push(event);
@@ -304,7 +288,7 @@ app.post("/chat", async (req, res) => {
       saveDB(db);
 
       return res.json({
-        reply: `Saved 😤🔥 ${event.title} at ${event.time} 💙`
+        reply: `Saved 😤🔥 ${event.title} 💙`
       });
     }
 
@@ -318,20 +302,24 @@ app.post("/chat", async (req, res) => {
 
       const parsed = await parseDate(message);
 
-      if (parsed.date) {
+      if (parsed.timestamp) {
 
         user.events.push({
           title: aiEvent.title,
           description: aiEvent.description,
-          date: parsed.date,
-          time: parsed.time,
-          notified: {}
+
+          timestamp: parsed.timestamp,
+
+          notified: {
+            five: false,
+            after: false
+          }
         });
 
         saveDB(db);
 
         return res.json({
-          reply: `Got you 😤🔥 ${aiEvent.title} at ${parsed.time} 💙`
+          reply: `Got you 😤🔥 ${aiEvent.title} 💙`
         });
       }
 
@@ -365,16 +353,14 @@ app.post("/chat", async (req, res) => {
           {
             role: "system",
             content: `
-You are MindCare, Harsimar's close best friend.
+You are Harsimar's close friend.
 
 Profile:
 ${JSON.stringify(user.profile)}
 
-Rules:
-- Remember past chats
-- Be emotional
-- Be supportive
-- Use emojis 😤💙🔥
+Be emotional.
+Remember past chats.
+Use emojis.
 `
           },
 
@@ -416,34 +402,32 @@ Rules:
 
 
 
-// ================= SMART REMINDERS =================
+// ================= REMINDER SYSTEM =================
 
 cron.schedule("* * * * *", async () => {
 
   try {
 
     const db = loadDB();
-    const now = getISTDate();
+
+    const now = Date.now();
+
 
     for (const token in db) {
 
       for (const e of db[token].events) {
 
-        if (!e.date || !e.time) continue;
+        if (!e.timestamp) continue;
 
-        // Force IST
-        const eventTime = new Date(`${e.date}T${e.time}:00+05:30`);
-
-        const diff = eventTime - now;
-
-
-        if (!e.notified) {
-          e.notified = { five:false, after:false };
-        }
+        const diff = e.timestamp - now;
 
 
         // 🔥 5 MIN BEFORE
-        if (diff <= 300000 && diff > 240000 && !e.notified.five) {
+        if (
+          diff <= 5 * 60 * 1000 &&
+          diff > 4 * 60 * 1000 &&
+          !e.notified.five
+        ) {
 
           await admin.messaging().send({
             token,
@@ -457,8 +441,11 @@ cron.schedule("* * * * *", async () => {
         }
 
 
-        // 💙 AFTER
-        if (diff < -300000 && !e.notified.after) {
+        // 💙 AFTER (5 min later)
+        if (
+          diff <= -5 * 60 * 1000 &&
+          !e.notified.after
+        ) {
 
           await admin.messaging().send({
             token,
@@ -470,6 +457,7 @@ cron.schedule("* * * * *", async () => {
 
           e.notified.after = true;
         }
+
       }
     }
 
