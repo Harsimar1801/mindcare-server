@@ -55,13 +55,48 @@ function saveDB(data) {
 
 // ================= HELPERS =================
 
+// Event detector
 function detectEvent(text) {
+
   const words = ["exam", "test", "quiz", "interview", "presentation"];
+
   return words.find(w => text.toLowerCase().includes(w));
 }
 
 
-// ================= SAFE DATE PARSER =================
+// Mood detector
+function detectMood(text) {
+
+  text = text.toLowerCase();
+
+  if (text.includes("sad") || text.includes("depressed") || text.includes("cry"))
+    return "low";
+
+  if (text.includes("scared") || text.includes("stress") || text.includes("anxious"))
+    return "anxious";
+
+  if (text.includes("happy") || text.includes("good") || text.includes("great"))
+    return "high";
+
+  if (text.includes("tired") || text.includes("burnout"))
+    return "tired";
+
+  return null;
+}
+
+
+// Name detector
+function detectName(text) {
+
+  const match = text.match(/my name is (\w+)/i);
+
+  if (match) return match[1];
+
+  return null;
+}
+
+
+// ================= DATE PARSER =================
 
 async function parseDate(text) {
 
@@ -116,22 +151,37 @@ app.post("/chat", async (req, res) => {
     return res.json({ reply: "Bro 😭 say something na 💙" });
   }
 
+
   let db = loadDB();
 
+
+  // Create user if new
   if (!db[fcmToken]) {
+
     db[fcmToken] = {
-      memory: {},
+
+      profile: {
+        name: null,
+        mood: "neutral",
+        stress: 5,
+        confidence: 5,
+        goals: []
+      },
+
       events: [],
+
       history: [],
+
       waitingFor: null
     };
   }
+
 
   const user = db[fcmToken];
 
 
 
-  // ================= SAVE USER MSG =================
+  // ================= SAVE USER MESSAGE =================
 
   user.history.push({
     role: "user",
@@ -142,7 +192,41 @@ app.post("/chat", async (req, res) => {
 
 
 
-  // ================= IF WAITING FOR DATE =================
+  // ================= UPDATE MOOD =================
+
+  const mood = detectMood(message);
+
+  if (mood) {
+
+    user.profile.mood = mood;
+
+    if (mood === "low" || mood === "anxious") {
+      user.profile.stress += 1;
+      user.profile.confidence -= 1;
+    }
+
+    if (mood === "high") {
+      user.profile.confidence += 1;
+    }
+
+    // Clamp values
+    user.profile.stress = Math.min(10, Math.max(1, user.profile.stress));
+    user.profile.confidence = Math.min(10, Math.max(1, user.profile.confidence));
+  }
+
+
+
+  // ================= UPDATE NAME =================
+
+  const name = detectName(message);
+
+  if (name) {
+    user.profile.name = name;
+  }
+
+
+
+  // ================= WAITING FOR DATE =================
 
   if (user.waitingFor) {
 
@@ -156,9 +240,9 @@ app.post("/chat", async (req, res) => {
 
     user.events.push(event);
 
-    // Save in memory also
-    user.memory[`${user.waitingFor}_date`] = parsed.date;
-    user.memory[`${user.waitingFor}_time`] = parsed.time;
+    if (!user.profile.goals.includes(event.type)) {
+      user.profile.goals.push(event.type);
+    }
 
     user.waitingFor = null;
 
@@ -177,7 +261,6 @@ app.post("/chat", async (req, res) => {
 
   if (detected) {
 
-    // If already saved, don't ask again
     const exists = user.events.find(e => e.type === detected);
 
     if (!exists) {
@@ -194,61 +277,6 @@ app.post("/chat", async (req, res) => {
 
 
 
-  // ================= MEMORY EXTRACT =================
-
-  const memoryAI = await groq.chat.completions.create({
-
-    model: "llama-3.1-8b-instant",
-
-    temperature: 0.2,
-
-    max_tokens: 200,
-
-    messages: [
-
-      {
-        role: "system",
-        content: `
-Extract personal info.
-
-Return JSON:
-
-{
- "memory": {
-   "name": null,
-   "friend": null,
-   "college": null
- }
-}
-
-Only JSON.
-`
-      },
-
-      ...user.history
-    ]
-  });
-
-
-  let extracted = { memory: {} };
-
-  try {
-    extracted = JSON.parse(memoryAI.choices[0].message.content);
-  } catch {}
-
-
-
-  // ================= SAVE MEMORY =================
-
-  for (const key in extracted.memory) {
-
-    if (extracted.memory[key]) {
-      user.memory[key] = extracted.memory[key];
-    }
-  }
-
-
-
   // ================= MAIN AI =================
 
   const chatAI = await groq.chat.completions.create({
@@ -257,24 +285,29 @@ Only JSON.
 
     temperature: 0.9,
 
-    max_tokens: 180,
+    max_tokens: 200,
 
     messages: [
 
       {
         role: "system",
         content: `
-You are Harsimar's close best friend.
+You are MindCare, Harsimar's real best friend.
 
 User profile:
-${JSON.stringify(user.memory)}
+Name: ${user.profile.name}
+Mood: ${user.profile.mood}
+Stress: ${user.profile.stress}/10
+Confidence: ${user.profile.confidence}/10
+Goals: ${user.profile.goals.join(", ")}
 
 Rules:
-- Remember past chats
-- Be consistent
-- Use emojis
-- Casual GenZ tone
-- Don't repeat questions
+- Talk like a human friend
+- Be emotionally aware
+- Reference past struggles
+- Encourage growth
+- Use emojis 😤💙🔥
+- Never sound robotic
 `
       },
 
@@ -287,7 +320,7 @@ Rules:
 
 
 
-  // ================= SAVE BOT MSG =================
+  // ================= SAVE BOT MESSAGE =================
 
   user.history.push({
     role: "assistant",
@@ -308,7 +341,9 @@ app.post("/push-now", async (req, res) => {
 
   const { token, title, body } = req.body;
 
-  if (!token) return res.status(400).json({ error: "Token missing" });
+  if (!token) {
+    return res.status(400).json({ error: "Token missing" });
+  }
 
   try {
 
@@ -322,13 +357,18 @@ app.post("/push-now", async (req, res) => {
       }
     });
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      msg: "Notification sent 😤🔥"
+    });
 
   } catch (err) {
 
-    console.log(err);
+    console.log("Push Error:", err);
 
-    res.status(500).json({ error: "Push failed 😭" });
+    res.status(500).json({
+      error: "Push failed 😭"
+    });
   }
 });
 
@@ -343,6 +383,7 @@ cron.schedule("0 9 * * *", async () => {
   const today = new Date().toISOString().slice(0,10);
 
   console.log("⏰ Checking reminders", today);
+
 
   for (const token in db) {
 
@@ -369,43 +410,7 @@ cron.schedule("0 9 * * *", async () => {
 // ================= START =================
 
 const PORT = process.env.PORT || 3000;
-// ================= MANUAL PUSH =================
 
-app.post("/push-now", async (req, res) => {
-
-  const { token, title, body } = req.body;
-
-  if (!token) {
-    return res.status(400).json({ error: "Token missing" });
-  }
-
-  try {
-
-    await admin.messaging().send({
-
-      token,
-
-      notification: {
-        title: title || "🧠 MindCare",
-        body: body || "Hey bro 💙"
-      }
-
-    });
-
-    res.json({
-      success: true,
-      msg: "Notification sent 😤🔥"
-    });
-
-  } catch (err) {
-
-    console.log("Push Error:", err);
-
-    res.status(500).json({
-      error: "Push failed 😭"
-    });
-  }
-});
 app.listen(PORT, () => {
   console.log("✅ Server running on", PORT);
 });
