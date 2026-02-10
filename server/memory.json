@@ -1,1 +1,74 @@
-{}
+{
+  "demo_fcm_token_123": {
+    "profile": {
+      "mood": "happy",
+      "language": "hinglish"
+    },
+    "history": [
+      {
+        "role": "user",
+        "content": "Hey bro"
+      },
+      {
+        "role": "assistant",
+        "content": "Heyy 😄 kya haal hai?"
+      },
+      {
+        "role": "user",
+        "content": "Aaj exam hai thoda stress hai"
+      },
+      {
+        "role": "assistant",
+        "content": "Samajh sakta hoon bhai 💙 tu kar lega, tension mat le."
+      },
+      {
+        "role": "user",
+        "content": "5 min mein exam"
+      },
+      {
+        "role": "assistant",
+        "content": "All the best 😤💙 tu phod dega!"
+      },
+      {
+        "role": "assistant",
+        "content": "Kaisa gaya exam? 🤗 Bata na"
+      }
+    ],
+    "events": [
+      {
+        "title": "Exam",
+        "time": 1739200000000,
+        "notified": {
+          "before": true,
+          "after": true
+        }
+      }
+    ]
+  },
+
+  "demo_fcm_token_456": {
+    "profile": {
+      "mood": "sad",
+      "language": "english"
+    },
+    "history": [
+      {
+        "role": "user",
+        "content": "I feel very low today"
+      },
+      {
+        "role": "assistant",
+        "content": "I’m here for you 💙 Want to talk about it?"
+      },
+      {
+        "role": "user",
+        "content": "Breakup ho gaya"
+      },
+      {
+        "role": "assistant",
+        "content": "That hurts bro… take time, heal yourself 🤍"
+      }
+    ],
+    "events": []
+  }
+}

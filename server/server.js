@@ -93,32 +93,32 @@ function detectMood(text) {
 // ================= MOOD REPLIES =================
 
 const moodReplies = {
-
   happy: [
-    "😄 Nice bro! Bata na, kya cheez ne happy kiya?",
-    "Good vibes aa rahi hain 💙 Kya hua?"
+    "😄 Nice bro! Tell me, what made you happy?",
+    "Good vibes 💙 What happened?"
   ],
 
   sad: [
-    "Bhai 💙 lagta hai heavy feel ho raha hai… bata na.",
-    "Main hoon na 🤍 kya hua?"
+    "Bro 💙 seems like you're feeling heavy… tell me.",
+    "I'm here 🤍 What happened?"
   ],
 
   anxious: [
-    "Relax bro 💙 pehle breathe karte hain.",
-    "Pressure zyada lag raha?"
+    "Relax bro 💙 let's breathe first.",
+    "Feeling too much pressure?"
   ],
 
   tired: [
-    "😴 Thak gaya lag raha hai bro… rest liya?",
-    "Aaj ka din tough tha kya?"
+    "😴 Feeling tired bro… did you rest?",
+    "Was today a tough day?"
   ],
 
   lonely: [
-    "Tu akela nahi hai bhai 💙",
-    "Main hoon na 🤍 baat kar."
+    "You're not alone, bro 💙",
+    "I'm here 🤍 talk to me."
   ]
 };
+
 
 function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -170,10 +170,11 @@ app.post("/chat", async (req, res) => {
 
 
     // Update language if changed
-    if (language) {
-      user.profile.language = language;
-    }
-
+// ✅ Save language permanently
+if (language && ["english","hindi","hinglish"].includes(language)) {
+  user.profile.language = language;
+  saveDB(db); // 👈 IMPORTANT
+}
 
     // Save user msg
     user.history.push({
@@ -251,13 +252,13 @@ Be caring, mature, natural.
 No cringe.
 Short replies.
 Ask max 1 question.
-
-Language: ${user.profile.language}
+Reply in only english
+Language: English
 
 Rules:
-hinglish → mix Hindi + English
+hinglish → English
 english → pure English
-hindi → pure Hindi
+hindi → English
 `
         },
 
