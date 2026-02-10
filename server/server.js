@@ -62,7 +62,7 @@ function saveDB(data) {
 // ================= HELPERS =================
 
 function formatTime(ts) {
- return new Date(ts - (5.5 * 60 * 60 * 1000)).toLocaleString("en-IN", {
+ return new Date(ts)-toLocaleString("en-IN", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -72,9 +72,6 @@ function formatTime(ts) {
 }
 // ================= IST TIME =================
 
-function nowIST() {
-  return Date.now() + (5.5 * 60 * 60 * 1000);
-}
 
 
 // ================= MOOD =================
@@ -138,7 +135,7 @@ function parseDate(text) {
 
   if (!match) return null;
 
-return nowIST() + parseInt(match[1]) * 60000;}
+return DataTransfer.now() + parseInt(match[1]) * 60000;}
 
 
 // ================= CHAT =================
