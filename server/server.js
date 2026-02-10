@@ -9,7 +9,6 @@ const Groq = require("groq-sdk");
 const admin = require("firebase-admin");
 
 
-
 // ================= FIREBASE =================
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -24,7 +23,6 @@ admin.initializeApp({
 });
 
 
-
 // ================= APP =================
 
 const app = express();
@@ -32,7 +30,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
-
 
 
 // ================= GROQ =================
@@ -45,7 +42,6 @@ if (!process.env.GROQ_API_KEY) {
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
-
 
 
 // ================= FILE DB =================
@@ -62,12 +58,10 @@ function saveDB(data) {
 }
 
 
-
 // ================= HELPERS =================
 
 function formatTime(ts) {
   return new Date(ts).toLocaleString("en-IN", {
-    timeZone: "Asia/Kolkata",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -75,7 +69,6 @@ function formatTime(ts) {
     month: "short"
   });
 }
-
 
 
 // ================= MOOD =================
@@ -92,7 +85,6 @@ function detectMood(text) {
 
   return null;
 }
-
 
 
 // ================= MOOD REPLIES =================
@@ -125,12 +117,9 @@ const moodReplies = {
   ]
 };
 
-
-
 function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
-
 
 
 // ================= TIME PARSER =================
@@ -147,7 +136,6 @@ function parseDate(text) {
 }
 
 
-
 // ================= CHAT =================
 
 app.post("/chat", async (req, res) => {
@@ -160,21 +148,18 @@ app.post("/chat", async (req, res) => {
       return res.json({ reply: "Bhai kuch likh toh sahi 💙" });
     }
 
-
     let db = loadDB();
 
 
-    // Create user
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
         profile: {
           mood: null,
-          language: "hinglish"
+          language: language || "hinglish"
         },
         history: [],
-        events: [],
-        lastCheckIn: 0
+        events: []
       };
     }
 
@@ -182,22 +167,19 @@ app.post("/chat", async (req, res) => {
     const user = db[fcmToken];
 
 
-    // Save language
+    // Update language if changed
     if (language) {
       user.profile.language = language;
     }
 
 
-
-    // Save user msg (WITH TIME)
+    // Save user msg
     user.history.push({
       role: "user",
-      content: message,
-      time: Date.now()
+      content: message
     });
 
-    if (user.history.length > 30) user.history.shift();
-
+    if (user.history.length > 20) user.history.shift();
 
 
     // ================= MOOD =================
@@ -207,20 +189,19 @@ app.post("/chat", async (req, res) => {
     if (mood) {
 
       user.profile.mood = mood;
+      saveDB(db);
 
       const reply = randomFrom(moodReplies[mood]);
 
       user.history.push({
         role: "assistant",
-        content: reply,
-        time: Date.now()
+        content: reply
       });
 
       saveDB(db);
 
       return res.json({ reply, mood });
     }
-
 
 
     // ================= EVENT =================
@@ -242,15 +223,13 @@ app.post("/chat", async (req, res) => {
 
       user.history.push({
         role: "assistant",
-        content: reply,
-        time: Date.now()
+        content: reply
       });
 
       saveDB(db);
 
       return res.json({ reply, mood: user.profile.mood });
     }
-
 
 
     // ================= AI =================
@@ -266,25 +245,21 @@ app.post("/chat", async (req, res) => {
           role: "system",
           content: `
 You are MindCare.
-
-User language: ${user.profile.language}
-
-Rules:
-
-If language is "english": English only
-If language is "hinglish": Mix Hindi + English
-If language is "hindi": Hindi only
-
-Be caring.
+Be caring, mature, natural.
+No cringe.
 Short replies.
 Ask max 1 question.
+
+Language: ${user.profile.language}
+
+Rules:
+hinglish → mix Hindi + English
+english → pure English
+hindi → pure Hindi
 `
         },
 
-        ...user.history.map(h => ({
-          role: h.role,
-          content: h.content
-        }))
+        ...user.history
       ]
     });
 
@@ -294,8 +269,7 @@ Ask max 1 question.
 
     user.history.push({
       role: "assistant",
-      content: reply,
-      time: Date.now()
+      content: reply
     });
 
     saveDB(db);
@@ -318,7 +292,7 @@ Ask max 1 question.
 
 
 
-// ================= HISTORY API =================
+// ================= GET HISTORY API =================
 
 app.get("/history/:token", (req, res) => {
 
@@ -343,7 +317,7 @@ app.get("/history/:token", (req, res) => {
 
 
 
-// ================= REMINDER + CHECK-IN =================
+// ================= REMINDER SYSTEM =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -360,37 +334,12 @@ cron.schedule("*/30 * * * * *", async () => {
       if (!user.events || !user.history) continue;
 
 
-
-      // ✅ CHECK-IN EVERY 6 HOURS
-      if (!user.lastCheckIn || now - user.lastCheckIn > 6 * 60 * 60 * 1000) {
-
-        const msg = "Hey bro 👋 sab theek hai? Kya chal raha?";
-
-        user.history.push({
-          role: "assistant",
-          content: msg,
-          time: Date.now()
-        });
-
-        await admin.messaging().send({
-          token,
-          notification: {
-            title: "💙 MindCare",
-            body: msg
-          }
-        });
-
-        user.lastCheckIn = now;
-      }
-
-
-
       for (const e of user.events) {
 
         const diff = e.time - now;
 
 
-        // BEFORE
+        // ===== BEFORE =====
         if (
           diff <= 5 * 60000 &&
           diff > 2 * 60000 &&
@@ -401,23 +350,30 @@ cron.schedule("*/30 * * * * *", async () => {
 
           user.history.push({
             role: "assistant",
-            content: msg,
-            time: Date.now()
+            content: msg
           });
 
+
           await admin.messaging().send({
+
             token,
+
             notification: {
               title: "🔥 You Got This",
               body: msg
+            },
+
+            data: {
+              message: msg
             }
+
           });
 
           e.notified.before = true;
         }
 
 
-        // AFTER
+        // ===== AFTER =====
         if (
           diff <= -2 * 60000 &&
           !e.notified.after
@@ -427,16 +383,23 @@ cron.schedule("*/30 * * * * *", async () => {
 
           user.history.push({
             role: "assistant",
-            content: msg,
-            time: Date.now()
+            content: msg
           });
 
+
           await admin.messaging().send({
+
             token,
+
             notification: {
               title: "💙 Proud of You",
               body: msg
+            },
+
+            data: {
+              message: msg
             }
+
           });
 
           e.notified.after = true;

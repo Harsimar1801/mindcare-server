@@ -1,25 +1,11 @@
-
-const languageSelect = document.getElementById("languageSelect");
-
-// Load saved language
-if (languageSelect) {
-  const savedLang = localStorage.getItem("language") || "hinglish";
-  languageSelect.value = savedLang;
-
-  // When user changes language
-  languageSelect.addEventListener("change", () => {
-    localStorage.setItem("language", languageSelect.value);
-    console.log("Language set:", languageSelect.value);
-  });
-}
 // ================= TOKEN =================
 
 function setFCMToken(token) {
   console.log("Saved Token:", token);
   localStorage.setItem("fcmToken", token);
+
   loadServerChat();
 }
-
 
 
 // ================= SERVICE WORKER =================
@@ -32,7 +18,6 @@ if ("serviceWorker" in navigator) {
 }
 
 
-
 // ================= PERMISSION =================
 
 async function askPermission() {
@@ -43,7 +28,6 @@ async function askPermission() {
 }
 
 askPermission();
-
 
 
 // ================= ANDROID BRIDGE =================
@@ -69,23 +53,15 @@ const langSelect = document.getElementById("langSelect");
 
 // ================= LANGUAGE =================
 
-// Load saved language
 const savedLang = localStorage.getItem("userLang") || "hinglish";
 
 if (langSelect) {
   langSelect.value = savedLang;
 }
 
-// Save on change
 if (langSelect) {
-
   langSelect.addEventListener("change", () => {
-
-    const lang = langSelect.value;
-
-    localStorage.setItem("userLang", lang);
-
-    addMessage("MindCare: Language set to " + lang + " ✅", "bot");
+    localStorage.setItem("userLang", langSelect.value);
   });
 }
 
@@ -107,7 +83,7 @@ function addMessage(text, type) {
 
 
 
-// ================= LOAD CHAT FROM SERVER =================
+// ================= LOAD CHAT =================
 
 async function loadServerChat() {
 
@@ -156,7 +132,6 @@ async function send() {
   input.value = "";
 
 
-
   // Typing
   const typing = document.createElement("div");
   typing.className = "bot";
@@ -166,11 +141,8 @@ async function send() {
   chat.scrollTop = chat.scrollHeight;
 
 
-
   const token = localStorage.getItem("fcmToken");
-
-  const lang = localStorage.getItem("userLang") || "hinglish";
-
+  const language = localStorage.getItem("userLang") || "hinglish";
 
 
   try {
@@ -183,11 +155,11 @@ async function send() {
         "Content-Type": "application/json"
       },
 
-    body: JSON.stringify({
-  message: text,
-  fcmToken: token,
-  language: localStorage.getItem("language") || "hinglish"
-})
+      body: JSON.stringify({
+        message: text,
+        fcmToken: token,
+        language: language
+      })
     });
 
 
@@ -198,7 +170,8 @@ async function send() {
     addMessage("MindCare: " + data.reply, "bot");
 
 
-    // Apply mood theme
+    // ================= THEME (UNCHANGED) =================
+
     if (data.mood) {
 
       localStorage.setItem("userMood", data.mood);
@@ -227,6 +200,135 @@ async function send() {
 input.addEventListener("keydown", e => {
   if (e.key === "Enter") send();
 });
+
+
+
+// =====================================
+// 🧠 SMART THEME ENGINE (UNCHANGED)
+// =====================================
+
+
+const moodThemes = {
+  happy: "#F7C59F",
+  calm: "#7FB7BE",
+  sad: "#6C63FF",
+  anxious: "#C77DFF",
+  stressed: "#FF9F68",
+  tired: "#9CA3AF",
+  lonely: "#B39DDB",
+  excited: "#64DFDF"
+};
+
+
+function hexToRgb(hex) {
+
+  let num = parseInt(hex.replace("#", ""), 16);
+
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255
+  };
+}
+
+
+function clamp(v) {
+  return Math.min(255, Math.max(0, v));
+}
+
+
+function soften({ r, g, b }) {
+
+  return {
+    r: clamp(r * 0.6 + 50),
+    g: clamp(g * 0.6 + 50),
+    b: clamp(b * 0.6 + 50)
+  };
+}
+
+
+function brightness({ r, g, b }) {
+
+  return (r * 299 + g * 587 + b * 114) / 1000;
+}
+
+
+
+// APPLY THEME
+function applyTheme(baseHex) {
+
+  const rgb = hexToRgb(baseHex);
+  const soft = soften(rgb);
+
+  const bright = brightness(soft);
+  const darkMode = bright < 135;
+
+
+  app.style.background = `
+    linear-gradient(
+      135deg,
+      rgba(${soft.r},${soft.g},${soft.b},0.35),
+      rgba(${soft.r - 25},${soft.g - 25},${soft.b - 25},0.35)
+    )
+  `;
+
+
+  header.style.background =
+    `rgba(${soft.r},${soft.g},${soft.b},0.45)`;
+
+
+  inputBox.style.background =
+    `rgba(${soft.r},${soft.g},${soft.b},0.25)`;
+
+
+  sendBtn.style.background =
+    `rgb(${soft.r - 10},${soft.g - 10},${soft.b - 10})`;
+
+
+  const textColor = darkMode ? "#ffffff" : "#121212";
+
+  app.style.color = textColor;
+  input.style.color = textColor;
+
+  input.style.background = darkMode
+    ? "rgba(255,255,255,0.15)"
+    : "rgba(0,0,0,0.15)";
+
+  sendBtn.style.color = darkMode ? "#fff" : "#111";
+}
+
+
+
+// ================= LOAD THEME =================
+
+const savedColor = localStorage.getItem("themeColor");
+
+if (savedColor) {
+  applyTheme(savedColor);
+}
+
+
+const savedMood = localStorage.getItem("userMood");
+
+if (!savedColor && savedMood && moodThemes[savedMood]) {
+  applyTheme(moodThemes[savedMood]);
+}
+
+
+
+// ================= PICKER =================
+
+if (themePicker) {
+
+  themePicker.addEventListener("input", () => {
+
+    const color = themePicker.value;
+
+    applyTheme(color);
+
+    localStorage.setItem("themeColor", color);
+  });
+}
 
 
 
