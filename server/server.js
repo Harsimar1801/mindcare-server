@@ -49,10 +49,12 @@ const groq = new Groq({
 const DB_FILE = "./memory.json";
 
 function loadDB() {
+
   if (!fs.existsSync(DB_FILE)) {
     fs.writeFileSync(DB_FILE, "{}");
     return {};
   }
+
   return JSON.parse(fs.readFileSync(DB_FILE));
 }
 
@@ -84,7 +86,7 @@ function detectMood(text) {
   if (t.match(/sad|cry|down|breakup|depressed|heartbroken|left me/)) return "sad";
   if (t.match(/stress|anxious|panic|tension|worried/)) return "anxious";
   if (t.match(/tired|sleep|exhaust|fatigue/)) return "tired";
-  if (t.match(/alone|lonely|akela|isolated/)) return "lonely";
+  if (t.match(/alone|lonely|isolated/)) return "lonely";
 
   return null;
 }
@@ -100,12 +102,12 @@ const moodReplies = {
   ],
 
   sad: [
-    "I’m really sorry you’re feeling this way. Breakups and emotional pain can hurt deeply. It’s okay to feel lost sometimes. You’re not weak for feeling this.",
+    "I’m really sorry you’re feeling this way. Breakups and emotional pain can hurt deeply. You’re not weak for feeling this.",
     "That sounds really painful. Anyone in your place would feel hurt. You don’t have to go through this alone."
   ],
 
   anxious: [
-    "It sounds overwhelming right now. Take a slow breath. You’re doing your best, even if it doesn’t feel like it.",
+    "It sounds overwhelming right now. Take a slow breath. You’re doing your best.",
     "Feeling anxious can be exhausting. You’re not failing. You’re just human."
   ],
 
@@ -240,26 +242,13 @@ app.post("/chat", async (req, res) => {
           content: `
 You are MindCare, a mental health support assistant.
 
-Your main goal is to listen and emotionally support the user.
-
 Rules:
-
 - Reply ONLY in English
 - Be warm, empathetic, and validating
-- Use Emoji too during conversations 
+- Use Emojis sometimes
 - Never sound robotic
-- Do NOT ask questions when user is sad, lonely, heartbroken, or depressed
-- First acknowledge feelings
-- Show understanding
-- Reassure gently
-- Only ask a question if the user clearly wants advice
-
-Style:
-- Soft
-- Human-like
-- Comforting
-- Non-judgmental
-- Supportive
+- Do NOT ask questions when user is sad or heartbroken
+- Focus on listening and comforting
 `
         },
 
@@ -321,7 +310,7 @@ app.get("/history/:token", (req, res) => {
 
 
 
-// ================= REMINDER SYSTEM =================
+// ================= EXAM REMINDER =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -367,9 +356,7 @@ cron.schedule("*/30 * * * * *", async () => {
               body: msg
             },
 
-            data: {
-              message: msg
-            }
+            data: { message: msg }
 
           });
 
@@ -400,9 +387,7 @@ cron.schedule("*/30 * * * * *", async () => {
               body: msg
             },
 
-            data: {
-              message: msg
-            }
+            data: { message: msg }
 
           });
 
@@ -416,6 +401,68 @@ cron.schedule("*/30 * * * * *", async () => {
   } catch (err) {
 
     console.log("Reminder error:", err);
+  }
+});
+
+
+
+// ================= DAILY CHECK-IN =================
+
+// Runs every day at 9 AM IST
+cron.schedule("0 9 * * *", async () => {
+
+  try {
+
+    const db = loadDB();
+
+    const messages = [
+      "Hi 👋 Just checking in on you today 💙",
+      "Hello 🌤️ Hope your day is going well.",
+      "Hey 😊 How are you feeling today?",
+      "Good morning ☀️ I'm here if you need me.",
+      "Hi 💙 Remember, you're doing your best."
+    ];
+
+
+    for (const token in db) {
+
+      const user = db[token];
+
+      if (!user.history) continue;
+
+
+      const msg = messages[Math.floor(Math.random() * messages.length)];
+
+
+      // Save in chat
+      user.history.push({
+        role: "assistant",
+        content: msg
+      });
+
+
+      // Send notification
+      await admin.messaging().send({
+
+        token,
+
+        notification: {
+          title: "MindCare 💙",
+          body: msg
+        },
+
+        data: { message: msg }
+
+      });
+    }
+
+    saveDB(db);
+
+    console.log("✅ Daily check-in sent");
+
+  } catch (err) {
+
+    console.log("Daily check-in error:", err);
   }
 });
 
