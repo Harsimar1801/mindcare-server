@@ -34,11 +34,6 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // ================= GROQ =================
 
-if (!process.env.GROQ_API_KEY) {
-  console.error("❌ GROQ_API_KEY missing");
-  process.exit(1);
-}
-
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
@@ -71,52 +66,6 @@ function formatTime(ts) {
 }
 
 
-// ================= MOOD =================
-
-function detectMood(text) {
-
-  const t = text.toLowerCase();
-
-  if (t.match(/happy|good|great|awesome|mast|khush/)) return "happy";
-  if (t.match(/sad|cry|down|breakup|depressed|low/)) return "sad";
-  if (t.match(/stress|anxious|panic|tension/)) return "anxious";
-  if (t.match(/tired|sleep|exhaust/)) return "tired";
-  if (t.match(/alone|lonely|akela/)) return "lonely";
-
-  return null;
-}
-
-
-// ================= MOOD REPLIES =================
-
-const moodReplies = {
-
-  happy: [
-    "😄 Nice bro! Bata na, kya cheez ne happy kiya?",
-    "Good vibes aa rahi hain 💙 Kya hua?"
-  ],
-
-  sad: [
-    "Bhai 💙 lagta hai heavy feel ho raha hai… bata na.",
-    "Main hoon na 🤍 kya hua?"
-  ],
-
-  anxious: [
-    "Relax bro 💙 pehle breathe karte hain.",
-    "Pressure zyada lag raha?"
-  ],
-
-  tired: [
-    "😴 Thak gaya lag raha hai bro… rest liya?",
-    "Aaj ka din tough tha kya?"
-  ],
-
-  lonely: [
-    "Tu akela nahi hai bhai 💙",
-    "Main hoon na 🤍 baat kar."
-  ]
-};
-
 function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -134,6 +83,19 @@ function parseDate(text) {
 
   return Date.now() + parseInt(match[1]) * 60000;
 }
+
+
+
+// ================= RANDOM CHECK MSG =================
+
+const randomCheckMsgs = [
+  "Heyyy 👋 Kaisa chal raha hai?",
+  "Hello bro 💙 Sab theek?",
+  "Hii 😄 Kya kar raha?",
+  "Oye 👀 Yaad aayi tumhari",
+  "Bhai 🤍 Sab okay?"
+];
+
 
 
 // ================= CHAT =================
@@ -167,7 +129,6 @@ app.post("/chat", async (req, res) => {
     const user = db[fcmToken];
 
 
-    // Update language if changed
     if (language) {
       user.profile.language = language;
     }
@@ -179,29 +140,7 @@ app.post("/chat", async (req, res) => {
       content: message
     });
 
-    if (user.history.length > 20) user.history.shift();
-
-
-    // ================= MOOD =================
-
-    const mood = detectMood(message);
-
-    if (mood) {
-
-      user.profile.mood = mood;
-      saveDB(db);
-
-      const reply = randomFrom(moodReplies[mood]);
-
-      user.history.push({
-        role: "assistant",
-        content: reply
-      });
-
-      saveDB(db);
-
-      return res.json({ reply, mood });
-    }
+    if (user.history.length > 30) user.history.shift();
 
 
     // ================= EVENT =================
@@ -228,7 +167,7 @@ app.post("/chat", async (req, res) => {
 
       saveDB(db);
 
-      return res.json({ reply, mood: user.profile.mood });
+      return res.json({ reply });
     }
 
 
@@ -245,17 +184,11 @@ app.post("/chat", async (req, res) => {
           role: "system",
           content: `
 You are MindCare.
-Be caring, mature, natural.
-No cringe.
+Be caring.
 Short replies.
-Ask max 1 question.
+No cringe.
 
 Language: ${user.profile.language}
-
-Rules:
-hinglish → mix Hindi + English
-english → pure English
-hindi → pure Hindi
 `
         },
 
@@ -275,10 +208,7 @@ hindi → pure Hindi
     saveDB(db);
 
 
-    res.json({
-      reply,
-      mood: user.profile.mood
-    });
+    res.json({ reply });
 
   }
 
@@ -286,13 +216,13 @@ hindi → pure Hindi
 
     console.log("🔥 SERVER ERROR:", err);
 
-    res.json({ reply: "Bhai thoda issue aa gaya 😭" });
+    res.json({ reply: "Server issue 😭" });
   }
 });
 
 
 
-// ================= GET HISTORY API =================
+// ================= HISTORY =================
 
 app.get("/history/:token", (req, res) => {
 
@@ -308,18 +238,17 @@ app.get("/history/:token", (req, res) => {
 
     res.json(db[token].history || []);
 
-  } catch (err) {
+  } catch {
 
-    console.log("History error:", err);
     res.json([]);
   }
 });
 
 
 
-// ================= REMINDER SYSTEM =================
+// ================= REMINDER + RANDOM SYSTEM =================
 
-cron.schedule("*/30 * * * * *", async () => {
+cron.schedule("*/20 * * * * *", async () => {
 
   try {
 
@@ -331,22 +260,24 @@ cron.schedule("*/30 * * * * *", async () => {
 
       const user = db[token];
 
-      if (!user.events || !user.history) continue;
+      if (!user.events) continue;
 
+
+      // ================= EXAM REMINDER =================
 
       for (const e of user.events) {
 
         const diff = e.time - now;
 
 
-        // ===== BEFORE =====
+        // BEFORE (6min → 2min window)
         if (
-          diff <= 5 * 60000 &&
-          diff > 2 * 60000 &&
+          diff <= 6 * 60000 &&
+          diff >= 2 * 60000 &&
           !e.notified.before
         ) {
 
-          const msg = "5 min left 😤💙 All the best!";
+          const msg = "⏰ Exam coming soon! All the best 😤💙";
 
           user.history.push({
             role: "assistant",
@@ -359,27 +290,22 @@ cron.schedule("*/30 * * * * *", async () => {
             token,
 
             notification: {
-              title: "🔥 You Got This",
+              title: "🔥 Exam Reminder",
               body: msg
-            },
-
-            data: {
-              message: msg
             }
-
           });
 
           e.notified.before = true;
         }
 
 
-        // ===== AFTER =====
+        // AFTER
         if (
           diff <= -2 * 60000 &&
           !e.notified.after
         ) {
 
-          const msg = "Kaisa gaya exam? 🤗 Bata na";
+          const msg = "🤗 Kaisa gaya exam? Bata na";
 
           user.history.push({
             role: "assistant",
@@ -394,24 +320,44 @@ cron.schedule("*/30 * * * * *", async () => {
             notification: {
               title: "💙 Proud of You",
               body: msg
-            },
-
-            data: {
-              message: msg
             }
-
           });
 
           e.notified.after = true;
         }
       }
+
+
+      // ================= RANDOM CHECK =================
+
+      if (Math.random() < 0.01) { // ~1% chance per run
+
+        const msg = randomFrom(randomCheckMsgs);
+
+        user.history.push({
+          role: "assistant",
+          content: msg
+        });
+
+
+        await admin.messaging().send({
+
+          token,
+
+          notification: {
+            title: "MindCare 💙",
+            body: msg
+          }
+        });
+      }
+
     }
 
     saveDB(db);
 
   } catch (err) {
 
-    console.log("Reminder error:", err);
+    console.log("CRON ERROR:", err);
   }
 });
 
