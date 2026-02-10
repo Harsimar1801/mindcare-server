@@ -62,13 +62,18 @@ function saveDB(data) {
 // ================= HELPERS =================
 
 function formatTime(ts) {
-  return new Date(ts).toLocaleString("en-IN", {
+ return new Date(ts - (5.5 * 60 * 60 * 1000)).toLocaleString("en-IN", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
     day: "numeric",
     month: "short"
   });
+}
+// ================= IST TIME =================
+
+function nowIST() {
+  return Date.now() + (5.5 * 60 * 60 * 1000);
 }
 
 
@@ -133,8 +138,7 @@ function parseDate(text) {
 
   if (!match) return null;
 
-  return Date.now() + parseInt(match[1]) * 60000;
-}
+return nowIST() + parseInt(match[1]) * 60000;}
 
 
 // ================= CHAT =================
@@ -325,7 +329,7 @@ cron.schedule("*/30 * * * * *", async () => {
   try {
 
     const db = loadDB();
-    const now = Date.now();
+    const now = nowIST();
 
 
     for (const token in db) {
