@@ -12,7 +12,7 @@ const admin = require("firebase-admin");
 // ================= FIREBASE =================
 
 if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-  console.error("❌ FIREBASE_SERVICE_ACCOUNT missing");
+  console.error("❌ GROQ_API_KEY missing");
   process.exit(1);
 }
 
@@ -92,33 +92,33 @@ function detectMood(text) {
 }
 
 
-// ================= MOOD REPLIES =================
+// ================= MOOD REPLIES (SHORT) =================
 
 const moodReplies = {
 
   happy: [
-    "That’s really nice to hear. I’m glad something is making you feel good today.",
-    "You sound positive. It’s good to see you feeling this way."
+    "That’s nice 😊 I’m glad you feel good.",
+    "You sound positive today 💙"
   ],
 
   sad: [
-    "I’m really sorry you’re feeling this way. Breakups and emotional pain can hurt deeply. You’re not weak for feeling this.",
-    "That sounds really painful. Anyone in your place would feel hurt. You don’t have to go through this alone."
+    "I’m sorry you’re hurting 💙 You’re not alone.",
+    "That sounds painful. I’m here with you."
   ],
 
   anxious: [
-    "It sounds overwhelming right now. Take a slow breath. You’re doing your best.",
-    "Feeling anxious can be exhausting. You’re not failing. You’re just human."
+    "Take a breath 🤍 You’re doing your best.",
+    "It’s okay to feel worried sometimes."
   ],
 
   tired: [
-    "You seem really drained. It’s okay to slow down and take care of yourself.",
-    "Being tired all the time can affect everything. You deserve rest."
+    "You seem exhausted 😴 Please rest.",
+    "You deserve some break 💙"
   ],
 
   lonely: [
-    "Feeling lonely can be very heavy. You matter, and you’re not invisible here.",
-    "Even when it feels like no one understands, you’re not alone right now."
+    "You matter 🤍 I’m here for you.",
+    "You’re not alone right now 💙"
   ]
 };
 
@@ -215,7 +215,7 @@ app.post("/chat", async (req, res) => {
         }
       });
 
-      const reply = `All the best. Your exam is at ${formatTime(time)}. Stay calm and confident.`;
+      const reply = `All the best 💪 Exam at ${formatTime(time)}`;
 
       user.history.push({
         role: "assistant",
@@ -233,22 +233,22 @@ app.post("/chat", async (req, res) => {
     const ai = await groq.chat.completions.create({
 
       model: "llama-3.1-8b-instant",
-      temperature: 0.5,
+      temperature: 0.4,
 
       messages: [
 
         {
           role: "system",
           content: `
-You are MindCare, a mental health support assistant.
+You are MindCare.
 
 Rules:
 - Reply ONLY in English
-- Be warm, empathetic, and validating
-- Use Emojis sometimes
-- Never sound robotic
-- Do NOT ask questions when user is sad or heartbroken
-- Focus on listening and comforting
+- Be short and supportive
+- Be empathetic
+- Use emojis sometimes
+- No long paragraphs
+- No unnecessary questions
 `
         },
 
@@ -279,7 +279,7 @@ Rules:
 
     console.log("🔥 SERVER ERROR:", err);
 
-    res.json({ reply: "Something went wrong. Please try again." });
+    res.json({ reply: "Something went wrong. Try again." });
   }
 });
 
@@ -339,7 +339,7 @@ cron.schedule("*/30 * * * * *", async () => {
           !e.notified.before
         ) {
 
-          const msg = "5 minutes left. You can do this. Stay focused.";
+          const msg = "5 min left 💪 Stay focused.";
 
           user.history.push({
             role: "assistant",
@@ -352,7 +352,7 @@ cron.schedule("*/30 * * * * *", async () => {
             token,
 
             notification: {
-              title: "You’ve Got This",
+              title: "Reminder",
               body: msg
             },
 
@@ -370,7 +370,7 @@ cron.schedule("*/30 * * * * *", async () => {
           !e.notified.after
         ) {
 
-          const msg = "How did your exam go? I’m proud of you for trying.";
+          const msg = "How did it go? Proud of you 💙";
 
           user.history.push({
             role: "assistant",
@@ -383,7 +383,7 @@ cron.schedule("*/30 * * * * *", async () => {
             token,
 
             notification: {
-              title: "Checking In",
+              title: "Check-in",
               body: msg
             },
 
@@ -408,7 +408,6 @@ cron.schedule("*/30 * * * * *", async () => {
 
 // ================= DAILY CHECK-IN =================
 
-// Runs every day at 9 AM IST
 cron.schedule("0 9 * * *", async () => {
 
   try {
@@ -416,11 +415,11 @@ cron.schedule("0 9 * * *", async () => {
     const db = loadDB();
 
     const messages = [
-      "Hi 👋 Just checking in on you today 💙",
-      "Hello 🌤️ Hope your day is going well.",
-      "Hey 😊 How are you feeling today?",
-      "Good morning ☀️ I'm here if you need me.",
-      "Hi 💙 Remember, you're doing your best."
+      "Hi 👋 Hope you’re okay today 💙",
+      "Good morning ☀️ Stay strong.",
+      "Hey 😊 I’m here for you.",
+      "Hello 🤍 Take care today.",
+      "You’re doing great 💪"
     ];
 
 
@@ -434,20 +433,18 @@ cron.schedule("0 9 * * *", async () => {
       const msg = messages[Math.floor(Math.random() * messages.length)];
 
 
-      // Save in chat
       user.history.push({
         role: "assistant",
         content: msg
       });
 
 
-      // Send notification
       await admin.messaging().send({
 
         token,
 
         notification: {
-          title: "MindCare 💙",
+          title: "MindCare",
           body: msg
         },
 
@@ -457,8 +454,6 @@ cron.schedule("0 9 * * *", async () => {
     }
 
     saveDB(db);
-
-    console.log("✅ Daily check-in sent");
 
   } catch (err) {
 
