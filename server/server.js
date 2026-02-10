@@ -87,33 +87,33 @@ function detectMood(text) {
 }
 
 
-// ================= MOOD REPLIES =================
+// ================= MOOD REPLIES (ENGLISH ONLY) =================
 
 const moodReplies = {
 
   happy: [
-    "😄 Nice bro! Bata na, kya cheez ne happy kiya?",
-    "Good vibes aa rahi hain 💙 Kya hua?"
+    "Nice! What made you feel happy today?",
+    "That’s great! What’s going well for you?"
   ],
 
   sad: [
-    "Bhai 💙 lagta hai heavy feel ho raha hai… bata na.",
-    "Main hoon na 🤍 kya hua?"
+    "It sounds like something is bothering you. Want to talk about it?",
+    "I’m here for you. What happened?"
   ],
 
   anxious: [
-    "Relax bro 💙 pehle breathe karte hain.",
-    "Pressure zyada lag raha?"
+    "Take a deep breath. What’s making you feel stressed?",
+    "It’s okay to feel anxious. Tell me what’s on your mind."
   ],
 
   tired: [
-    "😴 Thak gaya lag raha hai bro… rest liya?",
-    "Aaj ka din tough tha kya?"
+    "You seem exhausted. How was your day?",
+    "Have you been resting enough lately?"
   ],
 
   lonely: [
-    "Tu akela nahi hai bhai 💙",
-    "Main hoon na 🤍 baat kar."
+    "You’re not alone. I’m here with you.",
+    "Want to talk about what you’re feeling?"
   ]
 };
 
@@ -145,7 +145,7 @@ app.post("/chat", async (req, res) => {
     const { message, fcmToken } = req.body;
 
     if (!message || !fcmToken) {
-      return res.json({ reply: "Bhai kuch likh toh sahi 💙" });
+      return res.json({ reply: "Please type a message." });
     }
 
     let db = loadDB();
@@ -180,7 +180,6 @@ app.post("/chat", async (req, res) => {
     if (mood) {
 
       user.profile.mood = mood;
-      saveDB(db);
 
       const reply = randomFrom(moodReplies[mood]);
 
@@ -210,7 +209,7 @@ app.post("/chat", async (req, res) => {
         }
       });
 
-      const reply = `All the best 😤💙 Exam at ${formatTime(time)}`;
+      const reply = `All the best! Your exam is at ${formatTime(time)}.`;
 
       user.history.push({
         role: "assistant",
@@ -236,11 +235,17 @@ app.post("/chat", async (req, res) => {
           role: "system",
           content: `
 You are MindCare.
-Be caring, mature, natural.
-Use light English.
-No cringe.
-Short replies.
-Ask max 1 question.
+
+You are a caring, emotionally intelligent assistant.
+
+Rules:
+- Reply ONLY in English
+- Be calm and supportive
+- No slang
+- No Hinglish
+- No Hindi
+- Keep replies short (2–4 lines)
+- Ask at most 1 question
 `
         },
 
@@ -271,13 +276,13 @@ Ask max 1 question.
 
     console.log("🔥 SERVER ERROR:", err);
 
-    res.json({ reply: "Bhai thoda issue aa gaya 😭" });
+    res.json({ reply: "Something went wrong. Please try again." });
   }
 });
 
 
 
-// ================= GET HISTORY API =================
+// ================= GET HISTORY =================
 
 app.get("/history/:token", (req, res) => {
 
@@ -302,7 +307,7 @@ app.get("/history/:token", (req, res) => {
 
 
 
-// ================= REMINDER SYSTEM =================
+// ================= REMINDER =================
 
 cron.schedule("*/30 * * * * *", async () => {
 
@@ -324,14 +329,14 @@ cron.schedule("*/30 * * * * *", async () => {
         const diff = e.time - now;
 
 
-        // ===== BEFORE =====
+        // BEFORE
         if (
           diff <= 5 * 60000 &&
           diff > 2 * 60000 &&
           !e.notified.before
         ) {
 
-          const msg = "5 min left 😤💙 All the best!";
+          const msg = "5 minutes left. All the best!";
 
           user.history.push({
             role: "assistant",
@@ -344,13 +349,11 @@ cron.schedule("*/30 * * * * *", async () => {
             token,
 
             notification: {
-              title: "🔥 You Got This",
+              title: "Reminder",
               body: msg
             },
 
-            data: {
-              message: msg
-            }
+            data: { message: msg }
 
           });
 
@@ -358,13 +361,13 @@ cron.schedule("*/30 * * * * *", async () => {
         }
 
 
-        // ===== AFTER =====
+        // AFTER
         if (
           diff <= -2 * 60000 &&
           !e.notified.after
         ) {
 
-          const msg = "Kaisa gaya exam? 🤗 Bata na";
+          const msg = "How did your exam go?";
 
           user.history.push({
             role: "assistant",
@@ -377,13 +380,11 @@ cron.schedule("*/30 * * * * *", async () => {
             token,
 
             notification: {
-              title: "💙 Proud of You",
+              title: "Check-in",
               body: msg
             },
 
-            data: {
-              message: msg
-            }
+            data: { message: msg }
 
           });
 
