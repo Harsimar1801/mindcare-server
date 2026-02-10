@@ -4,6 +4,7 @@ function setFCMToken(token) {
   console.log("Saved Token:", token);
   localStorage.setItem("fcmToken", token);
 
+  // Load chat after token
   loadServerChat();
 }
 
@@ -47,23 +48,6 @@ const themePicker = document.getElementById("themePicker");
 const app = document.querySelector(".app");
 const header = document.querySelector(".header");
 const inputBox = document.querySelector(".input-box");
-const langSelect = document.getElementById("langSelect");
-
-
-
-// ================= LANGUAGE =================
-
-const savedLang = localStorage.getItem("userLang") || "hinglish";
-
-if (langSelect) {
-  langSelect.value = savedLang;
-}
-
-if (langSelect) {
-  langSelect.addEventListener("change", () => {
-    localStorage.setItem("userLang", langSelect.value);
-  });
-}
 
 
 
@@ -83,7 +67,7 @@ function addMessage(text, type) {
 
 
 
-// ================= LOAD CHAT =================
+// ================= LOAD CHAT FROM SERVER =================
 
 async function loadServerChat() {
 
@@ -142,7 +126,6 @@ async function send() {
 
 
   const token = localStorage.getItem("fcmToken");
-  const language = localStorage.getItem("userLang") || "hinglish";
 
 
   try {
@@ -155,7 +138,10 @@ async function send() {
         "Content-Type": "application/json"
       },
 
-     
+      body: JSON.stringify({
+        message: text,
+        fcmToken: token
+      })
     });
 
 
@@ -166,8 +152,7 @@ async function send() {
     addMessage("MindCare: " + data.reply, "bot");
 
 
-    // ================= THEME (UNCHANGED) =================
-
+    // Save mood + theme
     if (data.mood) {
 
       localStorage.setItem("userMood", data.mood);
@@ -200,10 +185,11 @@ input.addEventListener("keydown", e => {
 
 
 // =====================================
-// 🧠 SMART THEME ENGINE (UNCHANGED)
+// 🧠 SMART THEME ENGINE
 // =====================================
 
 
+// Mood → Soft Colors
 const moodThemes = {
   happy: "#F7C59F",
   calm: "#7FB7BE",
@@ -216,6 +202,7 @@ const moodThemes = {
 };
 
 
+// HEX → RGB
 function hexToRgb(hex) {
 
   let num = parseInt(hex.replace("#", ""), 16);
@@ -228,11 +215,13 @@ function hexToRgb(hex) {
 }
 
 
+// Clamp
 function clamp(v) {
   return Math.min(255, Math.max(0, v));
 }
 
 
+// Soften
 function soften({ r, g, b }) {
 
   return {
@@ -243,6 +232,7 @@ function soften({ r, g, b }) {
 }
 
 
+// Brightness
 function brightness({ r, g, b }) {
 
   return (r * 299 + g * 587 + b * 114) / 1000;
@@ -330,6 +320,7 @@ if (themePicker) {
 
 // ================= AUTO LOAD =================
 
+// If token already exists
 window.addEventListener("load", () => {
 
   const token = localStorage.getItem("fcmToken");

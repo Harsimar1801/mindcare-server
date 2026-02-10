@@ -1,4 +1,3 @@
-
 const path = require("path");
 require("dotenv").config();
 
@@ -62,7 +61,7 @@ function saveDB(data) {
 // ================= HELPERS =================
 
 function formatTime(ts) {
- return new Date(ts)-toLocaleString("en-IN", {
+  return new Date(ts).toLocaleString("en-IN", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -70,8 +69,6 @@ function formatTime(ts) {
     month: "short"
   });
 }
-// ================= IST TIME =================
-
 
 
 // ================= MOOD =================
@@ -93,32 +90,32 @@ function detectMood(text) {
 // ================= MOOD REPLIES =================
 
 const moodReplies = {
+
   happy: [
-    "😄 Nice bro! Tell me, what made you happy?",
-    "Good vibes 💙 What happened?"
+    "😄 Nice bro! Bata na, kya cheez ne happy kiya?",
+    "Good vibes aa rahi hain 💙 Kya hua?"
   ],
 
   sad: [
-    "Bro 💙 seems like you're feeling heavy… tell me.",
-    "I'm here 🤍 What happened?"
+    "Bhai 💙 lagta hai heavy feel ho raha hai… bata na.",
+    "Main hoon na 🤍 kya hua?"
   ],
 
   anxious: [
-    "Relax bro 💙 let's breathe first.",
-    "Feeling too much pressure?"
+    "Relax bro 💙 pehle breathe karte hain.",
+    "Pressure zyada lag raha?"
   ],
 
   tired: [
-    "😴 Feeling tired bro… did you rest?",
-    "Was today a tough day?"
+    "😴 Thak gaya lag raha hai bro… rest liya?",
+    "Aaj ka din tough tha kya?"
   ],
 
   lonely: [
-    "You're not alone, bro 💙",
-    "I'm here 🤍 talk to me."
+    "Tu akela nahi hai bhai 💙",
+    "Main hoon na 🤍 baat kar."
   ]
 };
-
 
 function randomFrom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -135,7 +132,8 @@ function parseDate(text) {
 
   if (!match) return null;
 
-return DataTransfer.now() + parseInt(match[1]) * 60000;}
+  return Date.now() + parseInt(match[1]) * 60000;
+}
 
 
 // ================= CHAT =================
@@ -144,7 +142,7 @@ app.post("/chat", async (req, res) => {
 
   try {
 
-    const { message, fcmToken, language } = req.body;
+    const { message, fcmToken } = req.body;
 
     if (!message || !fcmToken) {
       return res.json({ reply: "Bhai kuch likh toh sahi 💙" });
@@ -156,10 +154,7 @@ app.post("/chat", async (req, res) => {
     if (!db[fcmToken]) {
 
       db[fcmToken] = {
-        profile: {
-          mood: null,
-          language: language || "hinglish"
-        },
+        profile: { mood: null },
         history: [],
         events: []
       };
@@ -168,13 +163,6 @@ app.post("/chat", async (req, res) => {
 
     const user = db[fcmToken];
 
-
-    // Update language if changed
-// ✅ Save language permanently
-if (language && ["english","hindi","hinglish"].includes(language)) {
-  user.profile.language = language;
-  saveDB(db); // 👈 IMPORTANT
-}
 
     // Save user msg
     user.history.push({
@@ -249,16 +237,10 @@ if (language && ["english","hindi","hinglish"].includes(language)) {
           content: `
 You are MindCare.
 Be caring, mature, natural.
+Use light Hinglish.
 No cringe.
 Short replies.
 Ask max 1 question.
-Reply in only english
-Language: English
-
-Rules:
-hinglish → English
-english → pure English
-hindi → English
 `
         },
 
@@ -327,7 +309,7 @@ cron.schedule("*/30 * * * * *", async () => {
   try {
 
     const db = loadDB();
-    const now = nowIST();
+    const now = Date.now();
 
 
     for (const token in db) {
